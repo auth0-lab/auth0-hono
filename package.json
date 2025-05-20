@@ -1,7 +1,8 @@
 {
-  "name": "hono-openid-connect",
+  "name": "@auth0/hono-openid-connect",
   "version": "2.2.1",
   "description": "OpenID Connect middleware for Hono",
+  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -28,10 +29,10 @@
     "oauth2"
   ],
   "author": {
-    "name": "José F. Romaniello",
-    "url": "https://x.com/jfroma"
+    "name": "Auth0 Inc.",
+    "url": "https://auth0.com"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "devDependencies": {
     "@eslint/compat": "^1.2.8",
     "@eslint/js": "^9.24.0",

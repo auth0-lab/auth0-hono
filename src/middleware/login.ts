@@ -1,9 +1,8 @@
 import { OIDCAuthorizationRequestParams } from "@/config/authRequest.js";
-import { getConfiguration } from "@/config/index.js";
+import { getClient } from "@/config/index.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
-import { toSearchParams } from "@/utils/util.js";
+import { toSafeRedirect } from "@/utils/util.js";
 import { createMiddleware } from "hono/factory";
-import * as oidc from "openid-client";
 
 export type LoginParams = {
   /**
@@ -28,6 +27,27 @@ export type LoginParams = {
    * @default false
    */
   silent?: boolean;
+
+  /**
+   * Override authorization parameters.
+   *
+   * @example { prompt: 'none' }
+   * @default undefined
+   */
+  authorizationParams?: Partial<OIDCAuthorizationRequestParams>;
+
+  /**
+   * Forwards specific query parameters from the login request to the authorization request.
+   * This allows passing through parameters like 'ui_locales', 'acr_values', or custom parameters
+   * that your identity provider supports without having to specify them in authorizationParams.
+   *
+   * Only parameters with non-empty values will be forwarded.
+   *
+   * @example ['ui_locales', 'acr_values', 'login_hint']
+   * @example ['locale', 'campaign']
+   * @default []
+   */
+  forwardAuthorizationParams?: string[];
 };
 
 /**
@@ -35,40 +55,39 @@ export type LoginParams = {
  */
 export const login = (params: LoginParams = {}) => {
   return createMiddleware<OIDCEnv>(async function (c) {
-    const configuration = getConfiguration(c);
+    const { client, configuration } = getClient(c);
     const { debug } = configuration;
-    const oidcClientConfig = c.var.oidcClient!;
-    const session = c.get("session")!;
-    const returnTo =
+
+    // Get the potential return URL
+    const potentialReturnTo =
       params.redirectAfterLogin ??
       (c.req.method === "GET" && c.req.path !== configuration.routes.login
         ? c.req.url
         : undefined) ??
+      c.req.query("return_to") ??
       "/";
 
-    // Use URL class for safer URL construction
-    const redirectURI = new URL(
-      configuration.routes.callback,
-      configuration.baseURL,
-    ).toString();
-    const usePKCE = configuration.authorizationParams.response_type === "code";
+    // Validate the URL to prevent open redirects
+    const returnTo = toSafeRedirect(potentialReturnTo, configuration.baseURL);
 
-    let codeVerifier: string | undefined;
-    let codeChallenge: string | undefined;
-    const nonce = oidc.randomNonce();
-    const state = oidc.randomState();
-    if (usePKCE) {
-      codeVerifier = oidc.randomPKCECodeVerifier();
-      codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
+    const paramsFromQuery: Record<string, string> = {};
+
+    const forwardParams =
+      params.forwardAuthorizationParams ??
+      configuration.forwardAuthorizationParams;
+
+    if (forwardParams && forwardParams.length > 0) {
+      for (const param of forwardParams) {
+        const value = c.req.query(param);
+        if (value) {
+          paramsFromQuery[param] = value;
+        }
+      }
     }
 
     const authParams: Partial<OIDCAuthorizationRequestParams> = {
-      ...configuration.authorizationParams,
-      redirect_uri: redirectURI,
-      code_challenge: codeChallenge,
-      code_challenge_method: codeChallenge ? "S256" : undefined,
-      nonce,
-      state,
+      ...(params.authorizationParams ?? {}),
+      ...paramsFromQuery,
     };
 
     if (params.silent) {
@@ -77,27 +96,15 @@ export const login = (params: LoginParams = {}) => {
 
     debug("Starting login flow with:", authParams);
 
-    session.flash("oidc_tx", {
-      codeVerifier: codeVerifier,
-      nonce,
-      state,
-      returnTo,
-      silent: params.silent ?? false,
-    });
-
-    if (configuration.pushedAuthorizationRequests) {
-      const url = await oidc.buildAuthorizationUrlWithPAR(
-        oidcClientConfig,
-        authParams,
-      );
-      return c.redirect(url.href);
-    }
-
-    const authUrl = oidc.buildAuthorizationUrl(
-      oidcClientConfig,
-      toSearchParams(authParams),
+    const authorizationUrl = await client.startInteractiveLogin(
+      {
+        pushedAuthorizationRequests: configuration.pushedAuthorizationRequests,
+        appState: { returnTo },
+        authorizationParams: authParams,
+      },
+      c,
     );
 
-    return c.redirect(authUrl);
+    return c.redirect(authorizationUrl.href);
   });
 };

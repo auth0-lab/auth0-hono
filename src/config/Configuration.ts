@@ -1,9 +1,10 @@
 import { OIDCAuthorizationRequestParams } from "@/config/authRequest.js";
-import { SessionOptions } from "@jfromaniello/hono-sessions";
+import { SessionConfiguration } from "@/types/session.js";
 
 type Routes = {
   login: string;
   logout: string;
+  backchannelLogout?: string;
   callback: string;
 };
 
@@ -11,7 +12,7 @@ export interface Configuration {
   /**
    * The base URL of the OIDC provider.
    */
-  issuerBaseURL: string;
+  domain: string;
 
   /**
    * The base URL of the application.
@@ -53,7 +54,7 @@ export interface Configuration {
    *  }
    * }
    */
-  session: false | SessionOptions;
+  session: SessionConfiguration;
 
   /**
    * Use this setting to prevent the default routes from being installed.
@@ -61,6 +62,16 @@ export interface Configuration {
    * @default []
    */
   customRoutes: (keyof Routes)[];
+
+  /**
+   * Whether to mount the default routes.
+   *
+   * If set to false, you must manually define routes and use the middlewares
+   * login(), callback(), and logout() in your application.
+   *
+   * You can disable individual routes by using the `customRoutes` setting.
+   */
+  mountRoutes: boolean;
 
   /**
    * Routes options.
@@ -84,6 +95,13 @@ export interface Configuration {
    * }
    */
   authorizationParams: Partial<OIDCAuthorizationRequestParams>;
+
+  /**
+   * Forwards specific query parameters from the login request to the authorization request.
+   * This allows passing through parameters like 'ui_locales', 'acr_values', or custom parameters
+   * that your identity provider supports without having to specify them in authorizationParams.
+   */
+  forwardAuthorizationParams?: string[];
 
   /**
    * Additional parameters that will be sent to the
@@ -226,11 +244,11 @@ export interface Configuration {
 }
 
 // Type for the required fields that must be provided in InitConfiguration
-type RequiredConfigFields = "issuerBaseURL" | "baseURL" | "clientID";
+type RequiredConfigFields = "domain" | "baseURL" | "clientID";
 
 // Type for the optional session field that should be partial in InitConfiguration
 type SessionField = {
-  session?: false | Partial<SessionOptions>;
+  session?: Partial<SessionConfiguration>;
 };
 
 // Type for the optional routes field that should be partial in InitConfiguration

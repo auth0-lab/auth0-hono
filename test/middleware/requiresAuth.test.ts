@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Context } from "hono";
 import { accepts } from "hono/accepts";
 import { HTTPException } from "hono/http-exception";
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from "vitest";
-import { getConfiguration } from "../../src/config";
+import { getClient } from "../../src/config/index";
 import { login } from "../../src/middleware/login";
 import { requiresAuth } from "../../src/middleware/requiresAuth";
 
@@ -13,8 +12,8 @@ vi.mock("hono/accepts", () => ({
   accepts: vi.fn(),
 }));
 
-vi.mock("../../src/config", () => ({
-  getConfiguration: vi.fn(),
+vi.mock("../../src/config/index", () => ({
+  getClient: vi.fn(),
 }));
 
 vi.mock("../../src/middleware/login", () => ({
@@ -26,6 +25,7 @@ describe("requiresAuth middleware", () => {
   let mockNext: Mock;
   let mockConfiguration: any;
   let mockLoginMiddleware: Mock;
+  let mockClient: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -33,14 +33,13 @@ describe("requiresAuth middleware", () => {
     // Mock for next middleware function
     mockNext = vi.fn().mockResolvedValue(undefined);
 
-    // Mock context with authentication status
-    mockContext = {
-      var: {
-        oidc: {
-          isAuthenticated: false,
-        },
-      },
-    } as unknown as Context;
+    // Mock client with session
+    mockClient = {
+      getSession: vi.fn().mockResolvedValue(null),
+    };
+
+    // Mock context
+    mockContext = {} as unknown as Context;
 
     // Mock login middleware
     mockLoginMiddleware = vi
@@ -53,8 +52,11 @@ describe("requiresAuth middleware", () => {
       errorOnRequiredAuth: false,
     };
 
-    // Setup the getConfiguration mock
-    (getConfiguration as Mock).mockReturnValue(mockConfiguration);
+    // Setup the getClient mock
+    (getClient as Mock).mockReturnValue({
+      client: mockClient,
+      configuration: mockConfiguration,
+    });
   });
 
   afterEach(() => {
@@ -63,8 +65,8 @@ describe("requiresAuth middleware", () => {
 
   describe("when user is authenticated", () => {
     beforeEach(() => {
-      // Set authenticated to true
-      mockContext.var.oidc.isAuthenticated = true;
+      // Set authenticated by returning a session
+      mockClient.getSession.mockResolvedValue({ user: { sub: "123" } });
     });
 
     it("should continue to the next middleware", async () => {
@@ -80,8 +82,8 @@ describe("requiresAuth middleware", () => {
 
   describe("when user is not authenticated", () => {
     beforeEach(() => {
-      // Ensure authenticated is false
-      mockContext.var.oidc.isAuthenticated = false;
+      // Ensure no session is returned
+      mockClient.getSession.mockResolvedValue(null);
     });
 
     describe("when request accepts HTML and errorOnRequiredAuth is false", () => {
@@ -199,9 +201,7 @@ describe("requiresAuth middleware", () => {
 
     describe("when oidc is not initialized", () => {
       beforeEach(() => {
-        // Set oidc to undefined
-        // @ts-ignore
-        mockContext.var.oidc = undefined;
+        // We're already testing no session returned
         (accepts as Mock).mockReturnValue("text/html");
       });
 

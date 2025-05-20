@@ -17,17 +17,17 @@ export const parseConfiguration = (
   return result;
 };
 
-export const getConfiguration = (c: Context<OIDCEnv>): Configuration => {
-  if (!c.var.oidcConfiguration) {
+export { assignFromEnv } from "@/config/envConfig.js";
+
+export const getClient = (c: Context<OIDCEnv>) => {
+  if (!c.var.auth0Client || !c.var.auth0Configuration) {
     throw new HTTPException(500, {
       message:
-        "The oidc middleware is not properly configured. Install `auth` first.",
+        "The auth0 middleware is not properly configured. Install `auth` first.",
     });
   }
-  return c.var.oidcConfiguration;
+  return {
+    client: c.var.auth0Client,
+    configuration: c.var.auth0Configuration,
+  };
 };
-
-export {
-  assignFromEnv,
-  type ConditionalInitConfig,
-} from "@/config/envConfig.js";

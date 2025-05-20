@@ -1,30 +1,18 @@
 /** @jsx jsx */
+/** @jsxImportSource hono/jsx */
 
 import { serve } from "@hono/node-server";
-import { Context, Hono } from "hono";
-import { jsxRenderer } from 'hono/jsx-renderer';
-import { OIDCEnv, attemptSilentLogin, auth, requiresAuth } from "../../src"; // Import from our local package
-
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
+import { Hono } from "hono";
 import { jsx } from 'hono/jsx';
+import { jsxRenderer } from 'hono/jsx-renderer';
+import { OIDCEnv, attemptSilentLogin, auth, requiresAuth } from "../../src/index.js"; // Import from our local package
+console.log(`jsx: ${!!jsx}`)
 
 // Create the Hono app
-const app = new Hono();
+const app = new Hono<OIDCEnv>();
 
 // Configure auth middleware
-app.use(
-  auth({
-    issuerBaseURL: process.env.ISSUER_BASE_URL || "https://YOUR_DOMAIN",
-    clientID: process.env.CLIENT_ID || "YOUR_CLIENT_ID",
-    clientSecret: process.env.CLIENT_SECRET || "YOUR_CLIENT_SECRET",
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
-    session: {
-      encryptionKey: process.env.OIDC_AUTH_SECRET,
-    },
-    authRequired: false,
-    idpLogout: true,
-  }),
-);
+app.use(auth({ authRequired: false }));
 
 app.get(
   '/*',
@@ -38,8 +26,8 @@ app.get(
             <ul>
               <li><a href="/">/</a></li>
               <li><a href="/protected">/protected</a></li>
-              <li><a href="/login">/login</a></li>
-              <li><a href="/logout">/logout</a></li>
+              <li><a href="/auth/login">/auth/login</a></li>
+              <li><a href="/auth/logout">/auth/logout</a></li>
             </ul>
           </div>
         </body>
@@ -49,8 +37,9 @@ app.get(
 );
 
 // Add a simple protected route
-app.get("/", (c: Context<OIDCEnv>) => {
-  if (!c.var.oidc?.isAuthenticated) {
+app.get("/", async (c) => {
+  const session = await c.var.auth0Client?.getSession(c);
+  if (!session) {
     return c.render(<p>
       You are currently not authenticated. Click <a href="/login">here</a> to login.
       <br />
@@ -58,7 +47,7 @@ app.get("/", (c: Context<OIDCEnv>) => {
   }
   return c.render(
     <p>
-      Welcome {c.var.oidc?.claims?.name ?? c.var.oidc?.claims?.email}!
+      Welcome {session.user?.name ?? 'user'}!
       You are authenticated.
       Click <a href="/logout">here</a> to logout.
     </p>

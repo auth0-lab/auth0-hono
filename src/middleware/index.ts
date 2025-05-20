@@ -1,3 +1,4 @@
+export { backchannelLogout } from "./backchannelLogout.js";
 export { callback } from "./callback.js";
 export { login } from "./login.js";
 export { logout } from "./logout.js";

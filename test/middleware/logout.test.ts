@@ -21,7 +21,6 @@ vi.mock("../../src/middleware/silentLogin", () => ({
 
 describe("logout middleware", () => {
   let mockContext: Context;
-  let mockSession: any;
   let mockOidcSession: any;
   let mockConfiguration: any;
   let mockClient: any;
@@ -30,27 +29,17 @@ describe("logout middleware", () => {
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Mock session data
-    mockSession = {
-      get: vi.fn(),
-      set: vi.fn(),
-      forget: vi.fn(),
-    };
-
     (resumeSilentLogin as Mock).mockReturnValue(resumeSilentLoginMiddleware);
     // Mock OIDC session data
     mockOidcSession = {
-      tokens: {
-        id_token: "mock-id-token",
-        access_token: "mock-access-token",
-      },
+      id_token: "mock-id-token",
+      access_token: "mock-access-token",
     };
-
-    mockSession.get.mockReturnValue(mockOidcSession);
 
     // Create a mock client
     mockClient = {
       logout: vi.fn().mockResolvedValue("https://idp.example.com/logout"),
+      getSession: vi.fn().mockResolvedValue(mockOidcSession),
     };
 
     // Create a mock Hono context
@@ -60,10 +49,6 @@ describe("logout middleware", () => {
           /* mock OIDC client */
         },
       },
-      get: vi.fn().mockImplementation((key) => {
-        if (key === "session") return mockSession;
-        return undefined;
-      }),
       redirect: vi.fn().mockImplementation((url) => {
         return { status: 302, headers: { location: url } };
       }),
@@ -163,38 +148,8 @@ describe("logout middleware", () => {
     let result: Response;
 
     beforeEach(async () => {
-      (mockContext.get as Mock).mockImplementation(() => undefined);
+      mockClient.getSession.mockImplementation(() => undefined);
       result = (await logout()(mockContext, nextFn)) as Response;
-    });
-
-    it("should not attempt to clear the session", () => {
-      expect(mockSession.set).not.toHaveBeenCalled();
-    });
-
-    it("should still redirect to the baseURL", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith(
-        mockConfiguration.baseURL,
-      );
-    });
-
-    it("should return the redirect response", () => {
-      expect(result).toEqual({
-        status: 302,
-        headers: { location: mockConfiguration.baseURL },
-      });
-    });
-  });
-
-  describe("when OIDC session is not available", () => {
-    let result: Response;
-
-    beforeEach(async () => {
-      mockSession.get.mockReturnValue(undefined);
-      result = (await logout()(mockContext, nextFn)) as Response;
-    });
-
-    it("should not attempt to clear the session", () => {
-      expect(mockSession.set).not.toHaveBeenCalled();
     });
 
     it("should still redirect to the baseURL", () => {

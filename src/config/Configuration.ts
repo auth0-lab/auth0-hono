@@ -5,6 +5,7 @@ import { SessionOptions } from "@jfromaniello/hono-sessions";
 type Routes = {
   login: string;
   logout: string;
+  backchannelLogout?: string;
   callback: string;
 };
 
@@ -56,16 +57,22 @@ export interface Configuration {
    */
   session: SessionConfiguration;
 
-  // sessionSecret: string;
-  // sessionStore?: SessionStore;
-  // sessionConfiguration?: SessionConfiguration;
-
   /**
    * Use this setting to prevent the default routes from being installed.
    *
    * @default []
    */
   customRoutes: (keyof Routes)[];
+
+  /**
+   * Whether to mount the default routes.
+   *
+   * If set to false, you must manually define routes and use the middlewares
+   * login(), callback(), and logout() in your application.
+   *
+   * You can disable individual routes by using the `customRoutes` setting.
+   */
+  mountRoutes: boolean;
 
   /**
    * Routes options.

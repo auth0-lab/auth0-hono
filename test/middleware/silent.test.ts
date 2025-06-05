@@ -1,10 +1,9 @@
-/* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Context } from "hono";
 import { accepts } from "hono/accepts";
 import { deleteCookie, getCookie, setCookie } from "hono/cookie";
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from "vitest";
-import { getConfiguration } from "../../src/config";
+import { getClient } from "../../src/config/index";
 import { login } from "../../src/middleware/login";
 import {
   attemptSilentLogin,
@@ -23,8 +22,8 @@ vi.mock("hono/cookie", () => ({
   setCookie: vi.fn(),
 }));
 
-vi.mock("../../src/config", () => ({
-  getConfiguration: vi.fn(),
+vi.mock("../../src/config/index", () => ({
+  getClient: vi.fn(),
 }));
 
 vi.mock("../../src/middleware/login", () => ({
@@ -36,6 +35,7 @@ describe("silentLogin middleware", () => {
   let mockNext: Mock;
   let mockConfiguration: any;
   let mockLoginMiddleware: Mock;
+  let mockClient: any;
 
   beforeEach(() => {
     vi.resetAllMocks();
@@ -56,11 +56,16 @@ describe("silentLogin middleware", () => {
       .mockImplementation(() => Promise.resolve(undefined));
     (login as Mock).mockReturnValue(mockLoginMiddleware);
 
+    // Mock client
+    mockClient = {
+      getSession: vi.fn().mockResolvedValue(null),
+    };
+
     // Mock configuration
     mockConfiguration = {
       baseURL: "https://app.example.com",
       session: {
-        cookieOptions: {
+        cookie: {
           sameSite: "Lax",
           path: "/",
           httpOnly: true,
@@ -69,8 +74,11 @@ describe("silentLogin middleware", () => {
       },
     };
 
-    // Setup the getConfiguration mock
-    (getConfiguration as Mock).mockReturnValue(mockConfiguration);
+    // Setup the getClient mock
+    (getClient as Mock).mockReturnValue({
+      client: mockClient,
+      configuration: mockConfiguration,
+    });
   });
 
   afterEach(() => {
@@ -93,8 +101,8 @@ describe("silentLogin middleware", () => {
         await middleware(mockContext, mockNext);
       });
 
-      it("should get cookie options from configuration", () => {
-        expect(getConfiguration).toHaveBeenCalledWith(mockContext);
+      it("should get client info from context", () => {
+        expect(getClient).toHaveBeenCalledWith(mockContext);
       });
 
       it("should set a cookie to pause silent login", () => {
@@ -102,7 +110,7 @@ describe("silentLogin middleware", () => {
           mockContext,
           "oidc_skip_silent_login",
           "true",
-          mockConfiguration.session.cookieOptions,
+          mockConfiguration.session.cookie,
         );
       });
     });
@@ -110,8 +118,11 @@ describe("silentLogin middleware", () => {
     describe("when cookie options are not in configuration", () => {
       beforeEach(async () => {
         // Reset mock and provide configuration without cookie options
-        (getConfiguration as Mock).mockReturnValue({
-          baseURL: "https://app.example.com",
+        (getClient as Mock).mockReturnValue({
+          client: mockClient,
+          configuration: {
+            baseURL: "https://app.example.com",
+          },
         });
         await middleware(mockContext, mockNext);
       });
@@ -147,15 +158,15 @@ describe("silentLogin middleware", () => {
         await middleware(mockContext, mockNext);
       });
 
-      it("should get cookie options from configuration", () => {
-        expect(getConfiguration).toHaveBeenCalledWith(mockContext);
+      it("should get client info from context", () => {
+        expect(getClient).toHaveBeenCalledWith(mockContext);
       });
 
       it("should delete the cookie to resume silent login", () => {
         expect(deleteCookie).toHaveBeenCalledWith(
           mockContext,
           "oidc_skip_silent_login",
-          mockConfiguration.session.cookieOptions,
+          mockConfiguration.session.cookie,
         );
       });
     });
@@ -163,8 +174,11 @@ describe("silentLogin middleware", () => {
     describe("when cookie options are not in configuration", () => {
       beforeEach(async () => {
         // Reset mock and provide configuration without cookie options
-        (getConfiguration as Mock).mockReturnValue({
-          baseURL: "https://app.example.com",
+        (getClient as Mock).mockReturnValue({
+          client: mockClient,
+          configuration: {
+            baseURL: "https://app.example.com",
+          },
         });
         await middleware(mockContext, mockNext);
       });
@@ -204,8 +218,7 @@ describe("silentLogin middleware", () => {
 
         describe("and the user is not authenticated", () => {
           beforeEach(async () => {
-            // @ts-ignore
-            mockContext.var.oidc = undefined;
+            mockClient.getSession.mockResolvedValue(null);
             await attemptSilentLogin()(mockContext, mockNext);
           });
 
@@ -243,8 +256,7 @@ describe("silentLogin middleware", () => {
 
         describe("but the user is already authenticated", () => {
           beforeEach(async () => {
-            //@ts-ignore
-            mockContext.var.oidc = { isAuthenticated: true } as any;
+            mockClient.getSession.mockResolvedValue({ user: { sub: "123" } });
             await attemptSilentLogin()(mockContext, mockNext);
           });
 

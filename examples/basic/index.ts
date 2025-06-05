@@ -14,7 +14,7 @@ const authMiddleware = auth({
   clientSecret: process.env.AUTH0_CLIENT_SECRET || "YOUR_CLIENT_SECRET",
   baseURL: process.env.BASE_URL || "http://localhost:3000",
   session: {
-    encryptionKey: process.env.OIDC_AUTH_SECRET,
+    secret: process.env.OIDC_AUTH_SECRET,
   },
 });
 

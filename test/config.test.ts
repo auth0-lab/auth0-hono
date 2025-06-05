@@ -11,7 +11,7 @@ describe("Configuration Parser", () => {
       clientID: "test-client-id",
       clientSecret: "test",
       session: {
-        encryptionKey: "test encryption key fdsgfds gfds ",
+        secret: "test encryption key fdsgfds gfds ",
       },
     };
 
@@ -42,7 +42,7 @@ describe("Configuration Parser", () => {
       clientID: "test-client-id",
       clientSecret: "test-client-secret",
       session: {
-        encryptionKey: "test encryption key fdsgfds gfds ",
+        secret: "test encryption key fdsgfds gfds ",
       },
     };
 
@@ -53,9 +53,10 @@ describe("Configuration Parser", () => {
     expect(parsedConfig).toHaveProperty("routes");
 
     expect(parsedConfig.routes).toEqual({
-      login: "/login",
-      logout: "/logout",
-      callback: "/callback",
+      login: "/auth/login",
+      logout: "/auth/logout",
+      callback: "/auth/callback",
+      backchannelLogout: "/auth/backchannel-logout",
     });
   });
 
@@ -66,7 +67,7 @@ describe("Configuration Parser", () => {
       clientID: "test-client-id",
       clientSecret: "test",
       session: {
-        encryptionKey: "test encryption key fdsgfds gfds ",
+        secret: "test encryption key fdsgfds gfds ",
       },
     };
 
@@ -85,7 +86,7 @@ describe("Configuration Parser", () => {
         login: "login",
       },
       session: {
-        encryptionKey: "test encryption key fdsgfds gfds ",
+        secret: "test encryption key fdsgfds gfds ",
       },
     };
 

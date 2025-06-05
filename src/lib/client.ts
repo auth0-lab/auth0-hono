@@ -24,17 +24,17 @@ export function initializeOidcClient(config: Configuration) {
       ).toString(),
     },
     transactionStore: new CookieTransactionStore({
-      secret: config.session.encryptionKey,
+      secret: config.session.secret,
     }),
     stateStore: config.session.store
       ? new StatefulStateStore({
           ...config.session,
-          secret: config.session.encryptionKey,
+          secret: config.session.secret,
           store: config.session.store,
         })
       : new StatelessStateStore({
           ...config.session,
-          secret: config.session.encryptionKey,
+          secret: config.session.secret,
         }),
     stateIdentifier: config.session.cookie?.name ?? "appSession",
     customFetch: config.fetch,

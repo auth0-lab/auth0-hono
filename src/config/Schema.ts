@@ -27,7 +27,7 @@ export const ConfigurationSchema = z
     sessionStore: z.instanceof(SessionStore).optional(),
     session: z.object({
       store: z.any().optional(),
-      encryptionKey: z.string().min(32),
+      secret: z.string().min(32),
       rolling: z.boolean().optional().default(true),
       absoluteDuration: z
         .number()
@@ -92,9 +92,10 @@ export const ConfigurationSchema = z
     authRequired: z.boolean().optional().default(true),
     pushedAuthorizationRequests: z.boolean().optional().default(false),
     customRoutes: z
-      .array(z.enum(["login", "callback", "logout"]))
+      .array(z.enum(["login", "callback", "logout", "backchannelLogout"]))
       .optional()
       .default([]),
+    mountRoutes: z.boolean().optional().default(true),
     debug: z
       .custom<(message: string, metadata?: Record<string, unknown>) => void>(
         (v) => typeof v === "function",
@@ -103,9 +104,14 @@ export const ConfigurationSchema = z
       .default(() => () => {}),
     routes: z
       .object({
-        login: z.string().regex(/^\//).optional().default("/login"),
-        logout: z.string().regex(/^\//).optional().default("/logout"),
-        callback: z.string().regex(/^\//).optional().default("/callback"),
+        login: z.string().regex(/^\//).optional().default("/auth/login"),
+        logout: z.string().regex(/^\//).optional().default("/auth/logout"),
+        callback: z.string().regex(/^\//).optional().default("/auth/callback"),
+        backchannelLogout: z
+          .string()
+          .regex(/^\//)
+          .optional()
+          .default("/auth/backchannel-logout"),
       })
       .optional()
       .default({}),

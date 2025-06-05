@@ -28,7 +28,7 @@ app.use(
     clientSecret: process.env.AUTH0_CLIENT_SECRET,
     baseURL: process.env.BASE_URL,
     session: {
-      encryptionKey: "password_at_least_32_characters_long",
+      secret: "password_at_least_32_characters_long",
     },
   }),
 );
@@ -98,7 +98,7 @@ app.use(
   auth({
     // ...required options
     session: {
-      encryptionKey: "your-secure-encryption-key-minimum-32-chars",
+      secret: "your-secure-encryption-key-minimum-32-chars",
       sessionCookieName: "my_session",
       cookieOptions: {
         sameSite: "Lax",
@@ -165,9 +165,9 @@ app.onError((err, c) => {
 
 You can also configure the middleware using environment variables. The following environment variables are supported:
 
-- OIDC_ISSUER_URL: The issuer URL of the OpenID Connect provider (e.g., `https://auth.example.com`)
-- OIDC_CLIENT_ID: The client ID provided by your OIDC provider
-- OIDC_CLIENT_SECRET?: The client secret provided by your OIDC provider (required for most flows)
+- AUTH0_DOMAIN: The issuer URL of the OpenID Connect provider (e.g., `https://auth.example.com`)
+- AUTH0_CLIENT_ID: The client ID provided by your OIDC provider
+- AUTH0_CLIENT_SECRET?: The client secret provided by your OIDC provider (required for most flows)
 - BASE_URL: The base URL of your application (e.g., `https://myapp.com`)
 
 In order to make the parameters of the middleware optional so you can use `auth({})`, your `process.env` must define the properties as follows:
@@ -176,11 +176,11 @@ In order to make the parameters of the middleware optional so you can use `auth(
 delcare global {
   namespace NodeJS {
     interface ProcessEnv {
-      OIDC_ISSUER_URL: string;
-      OIDC_CLIENT_ID: string;
-      OIDC_CLIENT_SECRET?: string;
+      AUTH0_DOMAIN: string;
+      AUTH0_CLIENT_ID: string;
+      AUTH0_CLIENT_SECRET?: string;
       BASE_URL: string;
-      OIDC_SESSION_ENCRYPTION_KEY: string;
+      AUTH0_SESSION_ENCRYPTION_KEY: string;
     }
   }
 }

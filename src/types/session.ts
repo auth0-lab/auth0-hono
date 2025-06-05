@@ -76,7 +76,7 @@ export interface SessionConfiguration {
   /**
    * The encryption key used to encrypt the session data.
    */
-  encryptionKey: string;
+  secret: string;
 
   /**
    * The store used to persist the session data.

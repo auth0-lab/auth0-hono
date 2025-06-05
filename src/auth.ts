@@ -6,6 +6,7 @@ import {
 import { initializeOidcClient } from "@/lib/client.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
 import {
+  backchannelLogout as backchannelLogoutHandler,
   callback as callbackHandler,
   login as loginHandler,
   logout as logoutHandler,
@@ -41,16 +42,22 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
         c.set("auth0Configuration", config);
 
         // Use destructuring with defaults to ensure routes is always defined
-        const { routes, authRequired } = config;
-        const { login, callback, logout } = routes;
+        const { routes, authRequired, mountRoutes } = config;
+        const { login, callback, logout, backchannelLogout } = routes;
 
         // Handle login route
-        if (!config.customRoutes.includes("login") && c.req.path === login) {
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("login") &&
+          c.req.path === login &&
+          c.req.method === "GET"
+        ) {
           return loginHandler()(c, next);
         }
 
         // Handle callback route
         if (
+          mountRoutes &&
           !config.customRoutes.includes("callback") &&
           c.req.path === callback
         ) {
@@ -58,8 +65,23 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
         }
 
         // Handle logout route
-        if (!config.customRoutes.includes("logout") && c.req.path === logout) {
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("logout") &&
+          c.req.path === logout &&
+          c.req.method === "GET"
+        ) {
           return logoutHandler()(c, next);
+        }
+
+        // Handle backchannel logout route
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("backchannelLogout") &&
+          c.req.path === backchannelLogout &&
+          c.req.method === "POST"
+        ) {
+          return backchannelLogoutHandler()(c, next);
         }
 
         // Handle unauthenticated requests
@@ -67,7 +89,7 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
           return requiresAuth()(c, next);
         }
       } catch (error) {
-        console.error("OIDC Middleware Error:", error);
+        console.error("AUTH0 Middleware Error:", error);
         return c.text("Internal Server Error", 500);
       }
       // // Continue to the next middleware or route handler

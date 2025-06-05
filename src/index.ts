@@ -6,6 +6,7 @@ export { type UserInfoResponse as UserInfo } from "openid-client";
 
 export {
   attemptSilentLogin,
+  backchannelLogout,
   callback,
   login,
   logout,

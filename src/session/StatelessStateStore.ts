@@ -18,7 +18,6 @@ export class StatelessStateStore extends AbstractSessionStore {
 
   constructor(options: SessionConfiguration & EncryptedStoreOptions) {
     super(options);
-
     this.#cookieOptions = options.cookie;
   }
 
@@ -106,7 +105,7 @@ export class StatelessStateStore extends AbstractSessionStore {
     }
   }
 
-  deleteByLogoutToken(): Promise<void> {
+  async deleteByLogoutToken(): Promise<void> {
     throw new BackchannelLogoutError(
       "Backchannel logout is not available when using Stateless Storage. Use Stateful Storage by providing a `sessionStore`",
     );

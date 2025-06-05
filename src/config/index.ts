@@ -16,10 +16,8 @@ export const parseConfiguration = (
   parsedConfig.set(config, result);
   return result;
 };
-export {
-  assignFromEnv,
-  type ConditionalInitConfig,
-} from "@/config/envConfig.js";
+
+export { assignFromEnv } from "@/config/envConfig.js";
 
 export const getClient = (c: Context<OIDCEnv>) => {
   if (!c.var.auth0Client || !c.var.auth0Configuration) {

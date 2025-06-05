@@ -1,8 +1,4 @@
-import {
-  assignFromEnv,
-  ConditionalInitConfig,
-  parseConfiguration,
-} from "@/config/index.js";
+import { assignFromEnv, parseConfiguration } from "@/config/index.js";
 import { initializeOidcClient } from "@/lib/client.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
 import {
@@ -16,6 +12,7 @@ import { ServerClient } from "@auth0/auth0-server-js";
 import { Context, MiddlewareHandler, Next } from "hono";
 import { createMiddleware } from "hono/factory";
 import { Configuration } from "./config/Configuration.js";
+import { PartialConfig } from "./config/envConfig.js";
 
 /**
  * Main auth middleware function.
@@ -25,7 +22,7 @@ import { Configuration } from "./config/Configuration.js";
  * It also manages the routing for login, callback, and logout endpoints.
  *
  */
-export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
+export function auth(initConfig: PartialConfig = {}): MiddlewareHandler {
   let client: ServerClient<Context>;
   let config: Configuration;
   // Main OIDC middleware function
@@ -34,7 +31,10 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
       try {
         if (!client) {
           // Initialize the client
-          const withEnvVars = assignFromEnv(initConfig, c.env);
+          const withEnvVars = assignFromEnv(initConfig, {
+            ...c.env,
+            ...(process.env ?? {}),
+          });
           config = parseConfiguration(withEnvVars);
           client = initializeOidcClient(config);
         }

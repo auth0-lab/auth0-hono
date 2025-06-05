@@ -10,14 +10,10 @@ export type MinimalConfigByEnv = {
   AUTH0_SESSION_ENCRYPTION_KEY?: string;
 };
 
-type PartialConfig = MakeOptional<
+export type PartialConfig = MakeOptional<
   InitConfiguration,
   "clientID" | "clientSecret" | "domain" | "baseURL" | "session"
 >;
-
-export type ConditionalInitConfig = NodeJS.ProcessEnv extends MinimalConfigByEnv
-  ? PartialConfig
-  : InitConfiguration;
 
 export const envHasConfig = (
   config: MinimalConfigByEnv | unknown,
@@ -35,12 +31,11 @@ export const envHasConfig = (
 };
 
 export const assignFromEnv = (
-  config: ConditionalInitConfig,
+  config: PartialConfig,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   env: Record<string, any>,
 ): InitConfiguration => {
-  const configWithoutEnv = config ?? ({} as ConditionalInitConfig);
-
+  const configWithoutEnv = config ?? ({} as PartialConfig);
   if (!envHasConfig(env)) {
     return configWithoutEnv as InitConfiguration;
   }
@@ -52,7 +47,6 @@ export const assignFromEnv = (
     BASE_URL,
     AUTH0_AUDIENCE,
   } = env;
-  //todo: fix
   return {
     ...configWithoutEnv,
     domain: configWithoutEnv.domain ?? AUTH0_DOMAIN,
@@ -62,14 +56,11 @@ export const assignFromEnv = (
     authorizationParams: AUTH0_AUDIENCE
       ? { audience: AUTH0_AUDIENCE }
       : undefined,
-    session:
-      configWithoutEnv.session === false
-        ? false
-        : {
-            ...(configWithoutEnv.session || {}),
-            secret:
-              configWithoutEnv.session?.secret ??
-              process.env.AUTH0_SESSION_ENCRYPTION_KEY,
-          },
+    session: {
+      ...(configWithoutEnv.session || {}),
+      secret:
+        configWithoutEnv.session?.secret ??
+        process.env.AUTH0_SESSION_ENCRYPTION_KEY,
+    },
   };
 };

@@ -249,7 +249,7 @@ type RequiredConfigFields = "domain" | "baseURL" | "clientID";
 
 // Type for the optional session field that should be partial in InitConfiguration
 type SessionField = {
-  session?: false | Partial<SessionOptions>;
+  session?: Partial<SessionOptions>;
 };
 
 // Type for the optional routes field that should be partial in InitConfiguration

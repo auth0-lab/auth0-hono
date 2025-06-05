@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SessionStore } from "../types/session.js";
 
 const isHttps = /^https:/i;
 
@@ -23,34 +24,31 @@ const createAuthParamsSchema = () => {
 // Create the configuration schema
 export const ConfigurationSchema = z
   .object({
-    session: z
-      .union([
-        z.literal(false),
-        z.object({
-          store: z.any().optional(),
-          encryptionKey: z.string().min(32).optional(),
-          expireAfterSeconds: z
-            .number()
-            .optional()
-            .default(60 * 60 * 24),
-          sessionCookieName: z.string().optional().default("appSession"),
-          cookieOptions: z
-            .object({
-              domain: z.string().optional(),
-              sameSite: z
-                .enum(["Lax", "Strict", "None"])
-                .optional()
-                .default("Lax"),
-              path: z.string().optional().default("/"),
-              httpOnly: z.boolean().optional().default(true),
-              secure: z.boolean().optional(),
-              maxAge: z.number().optional(),
-            })
-            .optional()
-            .default({}),
+    sessionStore: z.instanceof(SessionStore).optional(),
+    session: z.object({
+      store: z.any().optional(),
+      encryptionKey: z.string().min(32),
+      rolling: z.boolean().optional().default(true),
+      absoluteDuration: z
+        .number()
+        .optional()
+        .default(60 * 60 * 24 * 3),
+      inactivityDuration: z
+        .number()
+        .optional()
+        .default(60 * 60 * 24),
+      cookieOptions: z
+        .object({
+          name: z.string().optional().default("appSession"),
+          sameSite: z.enum(["lax", "strict", "none"]).optional().default("lax"),
+          secure: z.boolean().optional(),
+        })
+        .optional()
+        .default({
+          name: "appSession",
+          sameSite: "lax",
         }),
-      ])
-      .default({}),
+    }),
     tokenEndpointParams: z.record(z.any()).optional(),
     authorizationParams: createAuthParamsSchema().optional().default({}),
     forwardAuthorizationParams: z.array(z.string()).optional().default([]),
@@ -86,7 +84,11 @@ export const ConfigurationSchema = z
       })
       .optional()
       .default("RS256"),
-    issuerBaseURL: z.string().url(),
+    domain: z
+      .string()
+      .regex(
+        /^(?=.{1,253}$)(?:(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)\.)*(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)$/,
+      ),
     authRequired: z.boolean().optional().default(true),
     pushedAuthorizationRequests: z.boolean().optional().default(false),
     customRoutes: z

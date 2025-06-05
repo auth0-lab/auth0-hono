@@ -1,26 +1,19 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Context } from "hono";
-import { HTTPException } from "hono/http-exception";
-import * as oidc from "openid-client";
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from "vitest";
-import { getConfiguration } from "../../src/config";
-import { OIDCContext } from "../../src/lib/context";
-import { OIDCException } from "../../src/lib/Exception";
+import { getClient } from "../../src/config";
 import { resumeSilentLogin } from "../../src/middleware";
 import { callback } from "../../src/middleware/callback";
+import { createRouteUrl } from "../../src/utils/util";
 
 // Mock dependencies
-vi.mock("openid-client", async (importOriginal) => ({
-  ...(await importOriginal()),
-  authorizationCodeGrant: vi.fn(),
-}));
-
 vi.mock("../../src/config", () => ({
-  getConfiguration: vi.fn(),
+  getClient: vi.fn(),
 }));
 
-vi.mock("../../src/lib/context", () => ({
-  OIDCContext: vi.fn(),
+vi.mock("../../src/utils/util", () => ({
+  createRouteUrl: vi.fn(),
+  toSafeRedirect: vi.fn((url) => url), // Mock toSafeRedirect to return the input
 }));
 
 vi.mock("../../src/middleware/silentLogin", () => ({
@@ -29,8 +22,7 @@ vi.mock("../../src/middleware/silentLogin", () => ({
 
 describe("callback middleware", () => {
   let mockContext: Context;
-  let mockSession: any;
-  let mockTokens: any;
+  let mockClient: any;
   let mockConfiguration: any;
   const nextFn = vi.fn();
   const resumeSilentLoginMiddleware = vi.fn();
@@ -40,46 +32,15 @@ describe("callback middleware", () => {
 
     (resumeSilentLogin as Mock).mockReturnValue(resumeSilentLoginMiddleware);
 
-    // Mock session data
-    mockSession = {
-      get: vi.fn(),
-      set: vi.fn(),
-      flash: vi.fn(),
+    // Create a mock client
+    mockClient = {
+      completeInteractiveLogin: vi.fn(),
     };
-
-    mockSession.get.mockReturnValue({
-      codeVerifier: "mock-code-verifier",
-      nonce: "mock-nonce",
-      state: "mock-state",
-      returnTo: "/dashboard",
-    });
-
-    // Mock tokens returned by authorizationCodeGrant
-    mockTokens = {
-      access_token: "mock-access-token",
-      id_token: "mock-id-token",
-      token_type: "Bearer",
-      expires_at: 1234567890,
-      claims: vi.fn(),
-    };
-
-    (oidc.authorizationCodeGrant as Mock).mockResolvedValue(mockTokens);
 
     // Create a mock Hono context
     mockContext = {
-      var: {
-        oidcClient: {
-          /* mock OIDC client */
-        },
-      },
-      get: vi.fn().mockImplementation((key) => {
-        if (key === "session") return mockSession;
-        return undefined;
-      }),
-      set: vi.fn(),
       req: {
         url: "https://app.example.com/callback?code=mock-code&state=mock-state",
-        raw: {},
       },
       redirect: vi.fn().mockImplementation((url) => {
         return { status: 302, headers: { location: url } };
@@ -88,16 +49,22 @@ describe("callback middleware", () => {
 
     // Create mock configuration
     mockConfiguration = {
-      debug: vi.fn(),
       baseURL: "https://app.example.com",
       routes: {
         callback: "/callback",
       },
-      tokenEndpointParams: {},
     };
 
-    // Setup the getConfiguration mock
-    (getConfiguration as Mock).mockReturnValue(mockConfiguration);
+    // Setup the getClient mock
+    (getClient as Mock).mockReturnValue({
+      client: mockClient,
+      configuration: mockConfiguration,
+    });
+
+    // Setup createRouteUrl mock
+    (createRouteUrl as Mock).mockReturnValue(
+      "https://app.example.com/callback?code=mock-code&state=mock-state",
+    );
   });
 
   afterEach(() => {
@@ -106,11 +73,19 @@ describe("callback middleware", () => {
 
   describe("when callback verification is successful", () => {
     beforeEach(async () => {
+      // Setup the completeInteractiveLogin mock to return appState with returnTo
+      mockClient.completeInteractiveLogin.mockResolvedValue({
+        appState: { returnTo: "/dashboard" },
+      });
+
       await callback()(mockContext, nextFn);
     });
 
-    it("should retrieve the verification data from the session", () => {
-      expect(mockSession.get).toHaveBeenCalledWith("oidc_tx");
+    it("should call completeInteractiveLogin with correct parameters", () => {
+      expect(mockClient.completeInteractiveLogin).toHaveBeenCalledWith(
+        "https://app.example.com/callback?code=mock-code&state=mock-state",
+        mockContext,
+      );
     });
 
     it("should call the resume silent login middleware", () => {
@@ -120,40 +95,8 @@ describe("callback middleware", () => {
       );
     });
 
-    it("should call authorizationCodeGrant with correct parameters", () => {
-      expect(oidc.authorizationCodeGrant).toHaveBeenCalledWith(
-        mockContext.var.oidcClient,
-        mockContext.req.raw,
-        {
-          pkceCodeVerifier: "mock-code-verifier",
-          expectedNonce: "mock-nonce",
-          expectedState: "mock-state",
-          idTokenExpected: true,
-        },
-        mockConfiguration.tokenEndpointParams,
-      );
-    });
-
-    it("should set the auth session in the session store", () => {
-      expect(mockSession.set).toHaveBeenCalledWith(
-        "oidc",
-        expect.objectContaining({
-          tokens: mockTokens,
-          requestedAt: expect.any(Number),
-        }),
-      );
-    });
-
-    it("should create and set a new OIDCContext", () => {
-      expect(OIDCContext).toHaveBeenCalledWith(mockContext);
-      expect(mockContext.set).toHaveBeenCalledWith(
-        "oidc",
-        expect.any(OIDCContext),
-      );
-    });
-
     it("should redirect to the returnTo URL by default", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/dashboard", 307);
+      expect(mockContext.redirect).toHaveBeenCalledWith("/dashboard");
     });
   });
 
@@ -161,13 +104,18 @@ describe("callback middleware", () => {
     let result: Response | void;
 
     beforeEach(async () => {
+      // Setup the completeInteractiveLogin mock to return appState with returnTo
+      mockClient.completeInteractiveLogin.mockResolvedValue({
+        appState: { returnTo: "/dashboard" },
+      });
+
       result = (await callback({
         redirectAfterLogin: "/custom-page",
       })(mockContext, nextFn)) as Response;
     });
 
     it("should redirect to the specified redirectAfterLogin URL", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/custom-page", 307);
+      expect(mockContext.redirect).toHaveBeenCalledWith("/custom-page");
     });
 
     it("should return the redirect response", () => {
@@ -182,6 +130,11 @@ describe("callback middleware", () => {
     let result: Response | void;
 
     beforeEach(async () => {
+      // Setup the completeInteractiveLogin mock to return appState with returnTo
+      mockClient.completeInteractiveLogin.mockResolvedValue({
+        appState: { returnTo: "/dashboard" },
+      });
+
       result = await callback({ redirectAfterLogin: false })(
         mockContext,
         nextFn,
@@ -190,68 +143,57 @@ describe("callback middleware", () => {
 
     it("should not redirect but continue to the next middleware", () => {
       expect(mockContext.redirect).not.toHaveBeenCalled();
+      expect(nextFn).toHaveBeenCalled();
       expect(result).toBeUndefined();
     });
   });
 
-  describe("when returnTo is not provided in the verification data", () => {
+  describe("when returnTo is not provided in the appState", () => {
     beforeEach(async () => {
-      // Mock session without returnTo
-      mockSession.get.mockReturnValue({
-        codeVerifier: "mock-code-verifier",
-        nonce: "mock-nonce",
-        state: "mock-state",
+      // Setup the completeInteractiveLogin mock to return empty appState
+      mockClient.completeInteractiveLogin.mockResolvedValue({
+        appState: undefined,
       });
 
       await callback()(mockContext, nextFn);
     });
 
-    it("should redirect to root (/) as fallback", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/", 307);
-    });
-  });
-
-  describe("when verification data is missing from session", () => {
-    beforeEach(() => {
-      mockSession.get.mockReturnValue(null);
-    });
-
-    it("should throw 401 Unauthorized exception", async () => {
-      await expect(callback()(mockContext, nextFn)).rejects.toThrow(
-        HTTPException,
-      );
-      await expect(callback()(mockContext, nextFn)).rejects.toThrow(
-        "Invalid callback state",
+    it("should redirect to baseURL as fallback", () => {
+      expect(mockContext.redirect).toHaveBeenCalledWith(
+        "https://app.example.com",
       );
     });
   });
 
-  describe("when authorizationCodeGrant throws an error", () => {
+  describe("when completeInteractiveLogin throws an error", () => {
     beforeEach(() => {
-      (oidc.authorizationCodeGrant as Mock).mockRejectedValue(
+      mockClient.completeInteractiveLogin.mockRejectedValue(
         new Error("Authorization code grant failed"),
       );
     });
 
-    it("should propagate the error", async () => {
+    it("should call resumeSilentLogin and then propagate the error", async () => {
       await expect(callback()(mockContext, nextFn)).rejects.toThrow(
         "Authorization code grant failed",
+      );
+      expect(resumeSilentLoginMiddleware).toHaveBeenCalledWith(
+        mockContext,
+        nextFn,
       );
     });
   });
 
-  describe("when callback verification returns an error", () => {
+  describe("when callback verification returns an error with specific message", () => {
     let err: Error;
     beforeEach(async () => {
-      (oidc.authorizationCodeGrant as Mock).mockImplementation(() => {
-        throw new oidc.ResponseBodyError("Invalid authorization code", {
-          cause: {
-            error: "invalid_grant",
-            error_description: "The authorization code is invalid or expired",
-          },
-          response: new Response("invalid grant", { status: 403 }),
-        });
-      });
+      // Create an error with cause property like OIDCException would have
+      const error = new Error("The authorization code is invalid or expired");
+      error.cause = {
+        error: "invalid_grant",
+        error_description: "The authorization code is invalid or expired",
+      };
+
+      mockClient.completeInteractiveLogin.mockRejectedValue(error);
 
       try {
         await callback()(mockContext, nextFn);
@@ -260,52 +202,16 @@ describe("callback middleware", () => {
       }
     });
 
-    it("should retrieve the verification data from the session", () => {
-      expect(mockSession.get).toHaveBeenCalledWith("oidc_tx");
-    });
-
-    it("should call the resume silent login middleware", () => {
+    it("should call resumeSilentLogin", () => {
       expect(resumeSilentLoginMiddleware).toHaveBeenCalledWith(
         mockContext,
         nextFn,
       );
     });
 
-    it("should call authorizationCodeGrant with correct parameters", () => {
-      expect(oidc.authorizationCodeGrant).toHaveBeenCalledWith(
-        mockContext.var.oidcClient,
-        mockContext.req.raw,
-        {
-          pkceCodeVerifier: "mock-code-verifier",
-          expectedNonce: "mock-nonce",
-          expectedState: "mock-state",
-          idTokenExpected: true,
-        },
-        mockConfiguration.tokenEndpointParams,
-      );
-    });
-
-    it("should set the auth session in the session store", () => {
-      expect(mockSession.set).not.toHaveBeenCalled();
-    });
-
-    it("should create and set a new OIDCContext", () => {
-      expect(OIDCContext).not.toHaveBeenCalled();
-      expect(mockContext.set).not.toHaveBeenCalledWith(
-        "oidc",
-        expect.any(OIDCContext),
-      );
-    });
-
-    it("should redirect to the returnTo URL by default", () => {
-      expect(mockContext.redirect).not.toHaveBeenCalledWith("/dashboard");
-    });
-
-    it("should throw the right error", () => {
-      expect(err).toBeInstanceOf(OIDCException);
-      expect(err).toMatchInlineSnapshot(
-        `[Error: The authorization code is invalid or expired]`,
-      );
+    it("should throw the error", () => {
+      expect(err).toBeDefined();
+      expect(err.message).toBe("The authorization code is invalid or expired");
     });
   });
 });

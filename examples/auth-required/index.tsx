@@ -5,18 +5,15 @@ import { Context, Hono } from "hono";
 import { jsxRenderer } from 'hono/jsx-renderer';
 import { OIDCEnv, attemptSilentLogin, auth, requiresAuth } from "../../src"; // Import from our local package
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-import { jsx } from 'hono/jsx';
-
 // Create the Hono app
 const app = new Hono();
 
 // Configure auth middleware
 app.use(
   auth({
-    issuerBaseURL: process.env.ISSUER_BASE_URL || "https://YOUR_DOMAIN",
-    clientID: process.env.CLIENT_ID || "YOUR_CLIENT_ID",
-    clientSecret: process.env.CLIENT_SECRET || "YOUR_CLIENT_SECRET",
+    domain: process.env.AUTH0_DOMAIN || "https://YOUR_DOMAIN",
+    clientID: process.env.AUTH0_CLIENT_ID || "YOUR_CLIENT_ID",
+    clientSecret: process.env.AUTH0_CLIENT_SECRET || "YOUR_CLIENT_SECRET",
     baseURL: process.env.BASE_URL || "http://localhost:3000",
     session: {
       encryptionKey: process.env.OIDC_AUTH_SECRET,

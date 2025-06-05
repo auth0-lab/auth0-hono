@@ -1,4 +1,5 @@
 import { OIDCAuthorizationRequestParams } from "@/config/authRequest.js";
+import { SessionConfiguration } from "@/types/session.js";
 import { SessionOptions } from "@jfromaniello/hono-sessions";
 
 type Routes = {
@@ -11,7 +12,7 @@ export interface Configuration {
   /**
    * The base URL of the OIDC provider.
    */
-  issuerBaseURL: string;
+  domain: string;
 
   /**
    * The base URL of the application.
@@ -53,7 +54,11 @@ export interface Configuration {
    *  }
    * }
    */
-  session: false | SessionOptions;
+  session: SessionConfiguration;
+
+  // sessionSecret: string;
+  // sessionStore?: SessionStore;
+  // sessionConfiguration?: SessionConfiguration;
 
   /**
    * Use this setting to prevent the default routes from being installed.
@@ -233,7 +238,7 @@ export interface Configuration {
 }
 
 // Type for the required fields that must be provided in InitConfiguration
-type RequiredConfigFields = "issuerBaseURL" | "baseURL" | "clientID";
+type RequiredConfigFields = "domain" | "baseURL" | "clientID";
 
 // Type for the optional session field that should be partial in InitConfiguration
 type SessionField = {

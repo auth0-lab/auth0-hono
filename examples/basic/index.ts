@@ -9,9 +9,9 @@ const app = new Hono<{
 
 // Configure auth middleware
 const authMiddleware = auth({
-  issuerBaseURL: process.env.ISSUER_BASE_URL || "https://YOUR_DOMAIN",
-  clientID: process.env.CLIENT_ID || "YOUR_CLIENT_ID",
-  clientSecret: process.env.CLIENT_SECRET || "YOUR_CLIENT_SECRET",
+  domain: process.env.AUTH0_DOMAIN || "https://YOUR_DOMAIN",
+  clientID: process.env.AUTH0_CLIENT_ID || "YOUR_CLIENT_ID",
+  clientSecret: process.env.AUTH0_CLIENT_SECRET || "YOUR_CLIENT_SECRET",
   baseURL: process.env.BASE_URL || "http://localhost:3000",
   session: {
     encryptionKey: process.env.OIDC_AUTH_SECRET,

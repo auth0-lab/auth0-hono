@@ -37,7 +37,7 @@ exports[`Configuration Parser > should parse a valid configuration 1`] = `
   "httpUserAgent": "hono-openid-connect",
   "idTokenSigningAlg": "RS256",
   "idpLogout": false,
-  "issuerBaseURL": "https://auth.example.com",
+  "domain": "auth.example.com",
   "pushedAuthorizationRequests": false,
   "routes": {
     "callback": "/callback",

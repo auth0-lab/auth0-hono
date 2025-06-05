@@ -50,7 +50,7 @@ describe("OIDC Client Initialization", () => {
 
     // Create base mock configuration
     mockConfig = {
-      issuerBaseURL: "https://auth.example.com",
+      domain: "auth.example.com",
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
       clientSecret: "test-client-secret",

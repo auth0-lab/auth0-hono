@@ -55,6 +55,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
+    "@auth0/auth0-server-js": "^1.0.1",
     "@jfromaniello/hono-sessions": "^2.0.1",
     "jose": "^6.0.11",
     "oauth4webapi": "^3.5.0",

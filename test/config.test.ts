@@ -6,7 +6,7 @@ import { InitConfiguration } from "../src/config/Configuration";
 describe("Configuration Parser", () => {
   it("should parse a valid configuration", () => {
     const validConfig: InitConfiguration = {
-      issuerBaseURL: "https://auth.example.com",
+      domain: "auth.example.com",
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
       clientSecret: "test",
@@ -17,10 +17,7 @@ describe("Configuration Parser", () => {
 
     const parsedConfig = parseConfiguration(validConfig);
 
-    expect(parsedConfig).toHaveProperty(
-      "issuerBaseURL",
-      "https://auth.example.com",
-    );
+    expect(parsedConfig).toHaveProperty("domain", "auth.example.com");
     expect(parsedConfig).toHaveProperty("baseURL", "https://app.example.com");
     expect(parsedConfig).toHaveProperty("clientID", "test-client-id");
     expect(parsedConfig).toHaveProperty("authRequired", true); // default value
@@ -30,7 +27,7 @@ describe("Configuration Parser", () => {
 
   it("should throw an error for invalid configuration", () => {
     const invalidConfig = {
-      // Missing required issuerBaseURL
+      // Missing required domain
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
     };
@@ -40,7 +37,7 @@ describe("Configuration Parser", () => {
 
   it("should apply default values to configuration", () => {
     const minimalConfig: InitConfiguration = {
-      issuerBaseURL: "https://auth.example.com",
+      domain: "auth.example.com",
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
       clientSecret: "test-client-secret",
@@ -64,7 +61,7 @@ describe("Configuration Parser", () => {
 
   it("should cache parsed configurations", () => {
     const config: InitConfiguration = {
-      issuerBaseURL: "https://auth.example.com",
+      domain: "auth.example.com",
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
       clientSecret: "test",
@@ -81,7 +78,7 @@ describe("Configuration Parser", () => {
 
   it("should not allow custom routes to be set to relative paths", () => {
     const config: InitConfiguration = {
-      issuerBaseURL: "https://auth.example.com",
+      domain: "auth.example.com",
       baseURL: "https://app.example.com",
       clientID: "test-client-id",
       routes: {

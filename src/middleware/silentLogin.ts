@@ -1,4 +1,4 @@
-import { getConfiguration } from "@/config/index.js";
+import { getClient } from "@/config/index.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
 import { Context } from "hono";
 import { accepts } from "hono/accepts";
@@ -10,10 +10,10 @@ import { login } from "./login.js";
 const COOKIE_NAME = "oidc_skip_silent_login";
 
 const getCookieOptions = (c: Context<OIDCEnv>): CookieOptions => {
-  const configuration = getConfiguration(c);
+  const { configuration } = getClient(c);
   let cookieOptions: CookieOptions | undefined =
     typeof configuration.session === "object"
-      ? configuration.session.cookieOptions
+      ? configuration.session.cookie
       : undefined;
 
   if (!cookieOptions) {
@@ -39,6 +39,9 @@ export const resumeSilentLogin = () =>
 
 export const attemptSilentLogin = () => {
   return createMiddleware<OIDCEnv>(async (c, next) => {
+    const { client } = getClient(c);
+    const session = await client.getSession(c);
+
     const acceptsHTML =
       accepts(c, {
         header: "Accept",
@@ -48,8 +51,7 @@ export const attemptSilentLogin = () => {
 
     const hasSkipCookie = getCookie(c, COOKIE_NAME);
 
-    const skipSilentLogin =
-      hasSkipCookie || c.var.oidc?.isAuthenticated || !acceptsHTML;
+    const skipSilentLogin = hasSkipCookie || !!session || !acceptsHTML;
 
     if (skipSilentLogin) {
       return next();

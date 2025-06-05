@@ -23,9 +23,9 @@ const app = new Hono();
 // Configure auth middleware with session options
 app.use(
   auth({
-    issuerBaseURL: process.env.ISSUER_BASE_URL,
-    clientID: process.env.CLIENT_ID,
-    clientSecret: process.env.CLIENT_SECRET,
+    domain: process.env.AUTH0_DOMAIN,
+    clientID: process.env.AUTH0_CLIENT_ID,
+    clientSecret: process.env.AUTH0_CLIENT_SECRET,
     baseURL: process.env.BASE_URL,
     session: {
       encryptionKey: "password_at_least_32_characters_long",
@@ -56,11 +56,11 @@ export default app;
 
 ### Required Configuration
 
-| Option          | Type     | Description                                                      |
-| --------------- | -------- | ---------------------------------------------------------------- |
-| `issuerBaseURL` | `string` | Base URL of the OIDC provider (e.g., `https://auth.example.com`) |
-| `baseURL`       | `string` | Base URL of your application (e.g., `https://myapp.com`)         |
-| `clientID`      | `string` | Client ID provided by your OIDC provider                         |
+| Option     | Type     | Description                                                      |
+| ---------- | -------- | ---------------------------------------------------------------- |
+| `domain`   | `string` | Base URL of the OIDC provider (e.g., `https://auth.example.com`) |
+| `baseURL`  | `string` | Base URL of your application (e.g., `https://myapp.com`)         |
+| `clientID` | `string` | Client ID provided by your OIDC provider                         |
 
 ### Optional Configuration
 

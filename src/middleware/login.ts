@@ -1,9 +1,8 @@
 import { OIDCAuthorizationRequestParams } from "@/config/authRequest.js";
-import { getConfiguration } from "@/config/index.js";
+import { getClient } from "@/config/index.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
-import { toSearchParams, validateRedirectUrl } from "@/utils/util.js";
+import { toSafeRedirect } from "@/utils/util.js";
 import { createMiddleware } from "hono/factory";
-import * as oidc from "openid-client";
 
 export type LoginParams = {
   /**
@@ -56,10 +55,8 @@ export type LoginParams = {
  */
 export const login = (params: LoginParams = {}) => {
   return createMiddleware<OIDCEnv>(async function (c) {
-    const configuration = getConfiguration(c);
+    const { client, configuration } = getClient(c);
     const { debug } = configuration;
-    const oidcClientConfig = c.var.oidcClient!;
-    const session = c.get("session")!;
 
     // Get the potential return URL
     const potentialReturnTo =
@@ -71,26 +68,7 @@ export const login = (params: LoginParams = {}) => {
       "/";
 
     // Validate the URL to prevent open redirects
-    const returnTo = validateRedirectUrl(
-      potentialReturnTo,
-      configuration.baseURL,
-    );
-
-    // Use URL class for safer URL construction
-    const redirectURI = new URL(
-      configuration.routes.callback,
-      configuration.baseURL,
-    ).toString();
-    const usePKCE = configuration.authorizationParams.response_type === "code";
-
-    let codeVerifier: string | undefined;
-    let codeChallenge: string | undefined;
-    const nonce = oidc.randomNonce();
-    const state = oidc.randomState();
-    if (usePKCE) {
-      codeVerifier = oidc.randomPKCECodeVerifier();
-      codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
-    }
+    const returnTo = toSafeRedirect(potentialReturnTo, configuration.baseURL);
 
     const paramsFromQuery: Record<string, string> = {};
 
@@ -108,12 +86,6 @@ export const login = (params: LoginParams = {}) => {
     }
 
     const authParams: Partial<OIDCAuthorizationRequestParams> = {
-      ...configuration.authorizationParams,
-      redirect_uri: redirectURI,
-      code_challenge: codeChallenge,
-      code_challenge_method: codeChallenge ? "S256" : undefined,
-      nonce,
-      state,
       ...(params.authorizationParams ?? {}),
       ...paramsFromQuery,
     };
@@ -124,27 +96,15 @@ export const login = (params: LoginParams = {}) => {
 
     debug("Starting login flow with:", authParams);
 
-    session.flash("oidc_tx", {
-      codeVerifier: codeVerifier,
-      nonce,
-      state,
-      returnTo,
-      silent: params.silent ?? false,
-    });
-
-    if (configuration.pushedAuthorizationRequests) {
-      const url = await oidc.buildAuthorizationUrlWithPAR(
-        oidcClientConfig,
-        authParams,
-      );
-      return c.redirect(url.href);
-    }
-
-    const authUrl = oidc.buildAuthorizationUrl(
-      oidcClientConfig,
-      toSearchParams(authParams),
+    const authorizationUrl = await client.startInteractiveLogin(
+      {
+        pushedAuthorizationRequests: configuration.pushedAuthorizationRequests,
+        appState: { returnTo },
+        authorizationParams: authParams,
+      },
+      c,
     );
 
-    return c.redirect(authUrl);
+    return c.redirect(authorizationUrl.href);
   });
 };

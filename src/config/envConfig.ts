@@ -12,7 +12,7 @@ export type MinimalConfigByEnv = {
 
 type PartialConfig = MakeOptional<
   InitConfiguration,
-  "clientID" | "clientSecret" | "issuerBaseURL" | "baseURL" | "session"
+  "clientID" | "clientSecret" | "domain" | "baseURL" | "session"
 >;
 
 export type ConditionalInitConfig = NodeJS.ProcessEnv extends MinimalConfigByEnv
@@ -36,10 +36,12 @@ export const envHasConfig = (
 
 export const assignFromEnv = (
   config: ConditionalInitConfig,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  env: Record<string, any>,
 ): InitConfiguration => {
   const configWithoutEnv = config ?? ({} as ConditionalInitConfig);
 
-  if (!envHasConfig(process.env)) {
+  if (!envHasConfig(env)) {
     return configWithoutEnv as InitConfiguration;
   }
 
@@ -49,10 +51,11 @@ export const assignFromEnv = (
     OIDC_CLIENT_SECRET,
     BASE_URL,
     OIDC_AUDIENCE,
-  } = process.env;
+  } = env;
+  //todo: fix
   return {
     ...configWithoutEnv,
-    issuerBaseURL: configWithoutEnv.issuerBaseURL ?? OIDC_ISSUER_URL,
+    domain: configWithoutEnv.domain ?? OIDC_ISSUER_URL,
     clientID: configWithoutEnv.clientID ?? OIDC_CLIENT_ID,
     clientSecret: configWithoutEnv.clientSecret ?? OIDC_CLIENT_SECRET,
     baseURL: configWithoutEnv.baseURL ?? BASE_URL,

@@ -4,10 +4,9 @@ import {
   LogoutTokenClaims,
   StateData,
 } from "@auth0/auth0-server-js";
-import { Context } from "hono";
 import type { SessionConfiguration } from "../types/session.js";
 
-export abstract class AbstractSessionStore extends AbstractStateStore<Context> {
+export abstract class AbstractSessionStore extends AbstractStateStore {
   readonly #rolling: boolean;
   readonly #absoluteDuration: number;
   readonly #inactivityDuration: number;
@@ -24,23 +23,13 @@ export abstract class AbstractSessionStore extends AbstractStateStore<Context> {
     identifier: string,
     stateData: StateData,
     removeIfExists?: boolean,
-    options?: Context | undefined,
   ): Promise<void>;
 
-  abstract get(
-    identifier: string,
-    options?: Context | undefined,
-  ): Promise<StateData | undefined>;
+  abstract get(identifier: string): Promise<StateData | undefined>;
 
-  abstract delete(
-    identifier: string,
-    options?: Context | undefined,
-  ): Promise<void>;
+  abstract delete(identifier: string): Promise<void>;
 
-  abstract deleteByLogoutToken(
-    claims: LogoutTokenClaims,
-    options?: Context | undefined,
-  ): Promise<void>;
+  abstract deleteByLogoutToken(claims: LogoutTokenClaims): Promise<void>;
 
   /**
    * calculateMaxAge calculates the max age of the session based on createdAt and the rolling and absolute durations.

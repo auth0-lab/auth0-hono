@@ -3,16 +3,13 @@ import {
   LogoutTokenClaims,
   StateData,
 } from "@auth0/auth0-server-js";
-import { Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { CookieOptions } from "hono/utils/cookie";
-import { MissingContextError } from "../errors/index.js";
 import type {
   SessionConfiguration,
   SessionCookieOptions,
   SessionStore,
 } from "../types/session.js";
 import { AbstractSessionStore } from "./AbstractSessionStore.js";
+import { CookieHandler, CookieSerializeOptions } from "./CookieHandler.js";
 
 export interface StatefulStateStoreOptions extends EncryptedStoreOptions {
   store: SessionStore;
@@ -29,10 +26,14 @@ const generateId = () => {
 export class StatefulStateStore extends AbstractSessionStore {
   readonly #store: SessionStore;
   readonly #cookieOptions: SessionCookieOptions | undefined;
+  #cookieHandler: CookieHandler;
 
-  constructor(options: StatefulStateStoreOptions & SessionConfiguration) {
+  constructor(
+    options: StatefulStateStoreOptions & SessionConfiguration,
+    cookieHandler: CookieHandler,
+  ) {
     super(options);
-
+    this.#cookieHandler = cookieHandler;
     this.#store = options.store;
     this.#cookieOptions = options.cookie;
   }
@@ -41,14 +42,8 @@ export class StatefulStateStore extends AbstractSessionStore {
     identifier: string,
     stateData: StateData,
     removeIfExists?: boolean,
-    c?: Context | undefined,
   ): Promise<void> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    let sessionId = await this.getSessionId(identifier, c);
+    let sessionId = await this.getSessionId(identifier);
 
     // if this is a new session created by a new login we need to remove the old session
     // from the store and regenerate the session ID to prevent session fixation.
@@ -62,7 +57,7 @@ export class StatefulStateStore extends AbstractSessionStore {
     }
 
     const maxAge = this.calculateMaxAge(stateData.internal.createdAt);
-    const cookieOpts: CookieOptions = {
+    const cookieOpts: CookieSerializeOptions = {
       httpOnly: true,
       sameSite: this.#cookieOptions?.sameSite ?? "lax",
       path: "/",
@@ -81,50 +76,35 @@ export class StatefulStateStore extends AbstractSessionStore {
     );
 
     await this.#store.set(sessionId, stateData);
-
-    setCookie(c, identifier, encryptedStateData, cookieOpts);
+    this.#cookieHandler.setCookie(identifier, encryptedStateData, cookieOpts);
   }
 
-  async get(
-    identifier: string,
-    c?: Context | undefined,
-  ): Promise<StateData | undefined> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    const sessionId = await this.getSessionId(identifier, c);
+  async get(identifier: string): Promise<StateData | undefined> {
+    const sessionId = await this.getSessionId(identifier);
 
     if (sessionId) {
       const stateData = await this.#store.get(sessionId);
 
       // If we have a session cookie, but no `stateData`, we should remove the cookie.
       if (!stateData) {
-        deleteCookie(c, identifier);
+        this.#cookieHandler.deleteCookie(identifier);
       }
 
       return stateData;
     }
   }
 
-  async delete(identifier: string, c?: Context | undefined): Promise<void> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    const sessionId = await this.getSessionId(identifier, c);
+  async delete(identifier: string): Promise<void> {
+    const sessionId = await this.getSessionId(identifier);
 
     if (sessionId) {
       await this.#store.delete(sessionId);
     }
-
-    deleteCookie(c, identifier);
+    this.#cookieHandler.deleteCookie(identifier);
   }
 
-  private async getSessionId(identifier: string, c: Context) {
-    const cookieValue = getCookie(c, identifier);
+  private async getSessionId(identifier: string) {
+    const cookieValue = this.#cookieHandler.getCookie(identifier);
     if (cookieValue) {
       const sessionCookie = await this.decrypt<{ id: string }>(
         identifier,
@@ -134,10 +114,7 @@ export class StatefulStateStore extends AbstractSessionStore {
     }
   }
 
-  deleteByLogoutToken(
-    claims: LogoutTokenClaims,
-    options?: Context | undefined,
-  ): Promise<void> {
-    return this.#store.deleteByLogoutToken(claims, options);
+  deleteByLogoutToken(claims: LogoutTokenClaims): Promise<void> {
+    return this.#store.deleteByLogoutToken(claims);
   }
 }

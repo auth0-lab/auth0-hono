@@ -1,26 +1,24 @@
 import {
   AbstractTransactionStore,
+  EncryptedStoreOptions,
   TransactionData,
 } from "@auth0/auth0-server-js";
-import { Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { CookieOptions } from "hono/utils/cookie";
-import { MissingContextError } from "../errors/index.js";
+import { CookieHandler, CookieSerializeOptions } from "./CookieHandler.js";
 
-export class CookieTransactionStore extends AbstractTransactionStore<Context> {
+export class CookieTransactionStore extends AbstractTransactionStore {
+  #cookieHandler: CookieHandler;
+
+  constructor(options: EncryptedStoreOptions, cookieHandler: CookieHandler) {
+    super(options);
+    this.#cookieHandler = cookieHandler;
+  }
+
   async set(
     identifier: string,
     transactionData: TransactionData,
-    removeIfExists?: boolean,
-    c?: Context,
   ): Promise<void> {
-    // We can not handle cookies in Fastify when the `StoreOptions` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
     const maxAge = 60 * 60;
-    const cookieOpts: CookieOptions = {
+    const cookieOpts: CookieSerializeOptions = {
       httpOnly: true,
       sameSite: "lax",
       path: "/",
@@ -32,32 +30,18 @@ export class CookieTransactionStore extends AbstractTransactionStore<Context> {
       transactionData,
       expiration,
     );
-
-    setCookie(c, identifier, encryptedStateData, cookieOpts);
+    this.#cookieHandler.setCookie(identifier, encryptedStateData, cookieOpts);
   }
 
-  async get(
-    identifier: string,
-    c?: Context,
-  ): Promise<TransactionData | undefined> {
-    // We can not handle cookies in Fastify when the `StoreOptions` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    // const cookieValue = options.request.cookies[identifier];
-    const cookieValue = getCookie(c, identifier);
+  async get(identifier: string): Promise<TransactionData | undefined> {
+    const cookieValue = this.#cookieHandler.getCookie(identifier);
 
     if (cookieValue) {
       return await this.decrypt(identifier, cookieValue);
     }
   }
 
-  async delete(identifier: string, c?: Context | undefined): Promise<void> {
-    // We can not handle cookies in Fastify when the `StoreOptions` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-    deleteCookie(c, identifier);
+  async delete(identifier: string): Promise<void> {
+    this.#cookieHandler.deleteCookie(identifier);
   }
 }

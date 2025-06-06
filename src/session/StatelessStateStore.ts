@@ -3,43 +3,33 @@ import {
   EncryptedStoreOptions,
   StateData,
 } from "@auth0/auth0-server-js";
-import { Context } from "hono";
-import { deleteCookie, getCookie, setCookie } from "hono/cookie";
-import { CookieOptions } from "hono/utils/cookie";
-import { MissingContextError } from "../errors/index.js";
 import type {
   SessionConfiguration,
   SessionCookieOptions,
 } from "../types/session.js";
 import { AbstractSessionStore } from "./AbstractSessionStore.js";
+import { CookieHandler, CookieSerializeOptions } from "./CookieHandler.js";
 
 export class StatelessStateStore extends AbstractSessionStore {
   readonly #cookieOptions: SessionCookieOptions | undefined;
+  readonly #cookieHandler: CookieHandler;
 
-  constructor(options: SessionConfiguration & EncryptedStoreOptions) {
+  constructor(
+    options: SessionConfiguration & EncryptedStoreOptions,
+    cookieHandler: CookieHandler,
+  ) {
     super(options);
     this.#cookieOptions = options.cookie;
+    this.#cookieHandler = cookieHandler;
   }
 
-  async set(
-    identifier: string,
-    stateData: StateData,
-    removeIfExists?: boolean,
-    c?: Context | undefined,
-  ): Promise<void> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
+  async set(identifier: string, stateData: StateData): Promise<void> {
     const maxAge = this.calculateMaxAge(stateData.internal.createdAt);
-    const cookieOpts: CookieOptions = {
+    const cookieOpts: CookieSerializeOptions = {
       httpOnly: true,
       sameSite: this.#cookieOptions?.sameSite ?? "lax",
       path: "/",
       secure: this.#cookieOptions?.secure ?? true,
-      // todo
-      // secure: this.#cookieOptions?.secure ?? "auto",
       maxAge,
     };
     const expiration = Math.floor(Date.now() / 1000 + maxAge);
@@ -51,40 +41,36 @@ export class StatelessStateStore extends AbstractSessionStore {
 
     const chunkSize = 3072;
     const chunkCount = Math.ceil(encryptedStateData.length / chunkSize);
+    if (chunkCount > 10) {
+      throw new Error(
+        `State data for identifier "${identifier}" exceeds the maximum size of 30720 characters when encrypted. Consider using a different storage method.`,
+      );
+    }
+
     const chunks = [...Array(chunkCount).keys()].map((i) => ({
       value: encryptedStateData.substring(i * chunkSize, (i + 1) * chunkSize),
       name: `${identifier}.${i}`,
     }));
 
-    chunks.forEach((chunk) => {
-      setCookie(c, chunk.name, chunk.value, cookieOpts);
-    });
-
-    const existingCookieKeys = this.getCookieKeys(identifier, c);
-    const cookieKeysToRemove = existingCookieKeys.filter(
-      (key) => !chunks.some((chunk) => chunk.name === key),
-    );
-    cookieKeysToRemove.forEach((key) => {
-      deleteCookie(c, key);
-    });
+    for (let i = 0; i < 10; i++) {
+      if (i < chunkCount) {
+        this.#cookieHandler.setCookie(
+          chunks[i].name,
+          chunks[i].value,
+          cookieOpts,
+        );
+      } else {
+        this.#cookieHandler.deleteCookie(`${identifier}.${i}`);
+      }
+    }
   }
 
-  async get(
-    identifier: string,
-    c?: Context | undefined,
-  ): Promise<StateData | undefined> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    const cookieKeys = this.getCookieKeys(identifier, c);
-    const encryptedStateData = cookieKeys
-      .map((key) => ({
-        index: parseInt(key.split(".")[1] as string, 10),
-        value: getCookie(c, key),
+  async get(identifier: string): Promise<StateData | undefined> {
+    const encryptedStateData = [...Array(10).keys()]
+      .map((index) => ({
+        index,
+        value: this.#cookieHandler.getCookie(`${identifier}.${index}`),
       }))
-      .sort((a, b) => a.index - b.index)
       .map((item) => item.value)
       .join("");
 
@@ -93,15 +79,9 @@ export class StatelessStateStore extends AbstractSessionStore {
     }
   }
 
-  async delete(identifier: string, c?: Context | undefined): Promise<void> {
-    // We can not handle cookies in Fastify when the `Context` are not provided.
-    if (!c) {
-      throw new MissingContextError();
-    }
-
-    const cookieKeys = this.getCookieKeys(identifier, c);
-    for (const key of cookieKeys) {
-      deleteCookie(c, key);
+  async delete(identifier: string): Promise<void> {
+    for (let i = 0; i < 10; i++) {
+      this.#cookieHandler.deleteCookie(`${identifier}.${i}`);
     }
   }
 
@@ -109,13 +89,5 @@ export class StatelessStateStore extends AbstractSessionStore {
     throw new BackchannelLogoutError(
       "Backchannel logout is not available when using Stateless Storage. Use Stateful Storage by providing a `sessionStore`",
     );
-  }
-
-  private getCookieKeys(identifier: string, c: Context): string[] {
-    const cookies = c.req.raw.headers.get("cookie") || "";
-    return cookies
-      .split(";")
-      .map((cookie: string) => cookie.trim().split("=")[0])
-      .filter((name: string) => name.length > 0 && name.startsWith(identifier));
   }
 }

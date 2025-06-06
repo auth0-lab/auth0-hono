@@ -1,5 +1,6 @@
 import { Configuration } from "@/config/Configuration.js";
 import { CookieTransactionStore } from "@/session/CookieTransactionStore.js";
+import { HonoCookieHandler } from "@/session/HonoCookieHandler.js";
 import { StatefulStateStore } from "@/session/StatefulStateStore.js";
 import { StatelessStateStore } from "@/session/StatelessStateStore.js";
 import { createRouteUrl } from "@/utils/util.js";
@@ -23,19 +24,28 @@ export function initializeOidcClient(config: Configuration) {
         config.baseURL,
       ).toString(),
     },
-    transactionStore: new CookieTransactionStore({
-      secret: config.session.secret,
-    }),
+    transactionStore: new CookieTransactionStore(
+      {
+        secret: config.session.secret,
+      },
+      new HonoCookieHandler(),
+    ),
     stateStore: config.session.store
-      ? new StatefulStateStore({
-          ...config.session,
-          secret: config.session.secret,
-          store: config.session.store,
-        })
-      : new StatelessStateStore({
-          ...config.session,
-          secret: config.session.secret,
-        }),
+      ? new StatefulStateStore(
+          {
+            ...config.session,
+            secret: config.session.secret,
+            store: config.session.store,
+          },
+          new HonoCookieHandler(),
+        )
+      : new StatelessStateStore(
+          {
+            ...config.session,
+            secret: config.session.secret,
+          },
+          new HonoCookieHandler(),
+        ),
     stateIdentifier: config.session.cookie?.name ?? "appSession",
     customFetch: config.fetch,
   });

@@ -1,6 +1,5 @@
 import { LogoutTokenClaims, StateData } from "@auth0/auth0-server-js";
 import { Session } from "@jfromaniello/hono-sessions";
-import { Context } from "hono";
 import * as oidc from "openid-client";
 
 /**
@@ -119,8 +118,5 @@ export abstract class SessionStore {
   abstract delete(identifier: string): Promise<void>;
   abstract set(identifier: string, stateData: StateData): Promise<void>;
   abstract get(identifier: string): Promise<StateData | undefined>;
-  abstract deleteByLogoutToken(
-    claims: LogoutTokenClaims,
-    c?: Context | undefined,
-  ): Promise<void>;
+  abstract deleteByLogoutToken(claims: LogoutTokenClaims): Promise<void>;
 }

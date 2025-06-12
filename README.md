@@ -5,7 +5,7 @@ An Auth0 authentication middleware for [Hono](https://hono.dev) web framework. B
 ## Installation
 
 ```bash
-npm install hono-openid-connect
+npm install @auth0/auth0-hono
 ```
 
 ## Basic Usage
@@ -14,7 +14,7 @@ The simplest way to secure your Hono application is to implement the middleware 
 
 ```ts
 import { Hono } from "hono";
-import { auth } from "hono-openid-connect";
+import { auth } from "@auth0/auth0-hono";
 
 const app = new Hono();
 
@@ -112,18 +112,6 @@ app.use(
 );
 ```
 
-To use your own instance of [hono-sessions](https://www.npmjs.com/package/hono-sessions):
-
-```ts
-app.use(sessionMiddleware({}));
-app.use(
-  auth({
-    // ...required options
-    session: false,
-  }),
-);
-```
-
 ### Authorization Parameters
 
 You can customize the parameters sent to the authorization endpoint:
@@ -143,14 +131,14 @@ app.use(
 
 ### Error handling
 
-You can catch `OIDCException` errors and handle them in your application. This is useful for logging or displaying custom error messages.
+You can catch `Auth0Exception` errors and handle them in your application. This is useful for logging or displaying custom error messages.
 
 ```js
-import { OIDCException } from "hono-openid-connect";
+import { Auth0Exception } from "@auth0/auth0-hono";
 
 app.onError((err, c) => {
   // Handle Auth0-specific errors
-  if (err instanceof OIDCException) {
+  if (err instanceof Auth0Exception) {
     console.log(err);
     if (process.env.NODE_ENV === "development") {
       return err.getResponse();
@@ -167,34 +155,9 @@ app.onError((err, c) => {
 You can also configure the middleware using environment variables. The following environment variables are supported:
 
 - AUTH0_DOMAIN: The issuer URL of the OpenID Connect provider (e.g., `auth.example.com`)
-- AUTH0_CLIENT_ID: The client ID provided by your OIDC provider
-- AUTH0_CLIENT_SECRET?: The client secret provided by your OIDC provider (required for most flows)
+- AUTH0_CLIENT_ID: The client ID.
+- AUTH0_CLIENT_SECRET?: The client secret provided (required for most flows)
 - BASE_URL: The base URL of your application (e.g., `https://myapp.com`)
-
-In order to make the parameters of the middleware optional so you can use `auth({})`, your `process.env` must define the properties as follows:
-
-```js
-delcare global {
-  namespace NodeJS {
-    interface ProcessEnv {
-      AUTH0_DOMAIN: string;
-      AUTH0_CLIENT_ID: string;
-      AUTH0_CLIENT_SECRET?: string;
-      BASE_URL: string;
-      AUTH0_SESSION_ENCRYPTION_KEY: string;
-    }
-  }
-}
-```
-
-You automatically achieve this in Cloudflare's wrangler if you use:
-
-```
-  "compatibility_flags": [
-    "nodejs_compat",
-    "nodejs_compat_populate_process_env"
-  ],
-```
 
 ## Advanced Usage
 
@@ -204,7 +167,7 @@ Only protect specific routes:
 
 ```ts
 import { Hono } from "hono";
-import { auth, requiresAuth } from "hono-openid-connect";
+import { auth, requiresAuth } from "@auth0/auth0-hono";
 
 const app = new Hono();
 
@@ -234,7 +197,7 @@ Try to authenticate silently without user interaction:
 
 ```ts
 import { Hono } from "hono";
-import { auth, attemptSilentLogin } from "hono-openid-connect";
+import { auth, attemptSilentLogin } from "@auth0/auth0-hono";
 
 const app = new Hono();
 
@@ -259,7 +222,7 @@ app.get("/", attemptSilentLogin(), async (c) => {
 The login middleware supports several advanced options:
 
 ```ts
-import { login } from "hono-openid-connect";
+import { login } from "@auth0/auth0-hono";
 
 // Custom login options
 app.get("/custom-login", async (c) => {
@@ -290,27 +253,6 @@ With `forwardQueryParams`, you can pass query parameters from the login request 
 - Maintaining tracking parameters throughout the authentication flow
 - Supporting custom parameters your identity provider accepts
 
-## Current Limitations
-
-- **Backchannel Logout**: Unlike express-openid-connect, this middleware does not currently support backchannel logout.
-- **JWT Response Mode**: Currently supports standard response modes but not JWT response mode.
-- **Dynamic Client Registration**: Manual client registration is required.
-
-## Context Variables
-
-The middleware adds the following to the Hono context (`c.var`):
-
-- `c.var.oidc.isAuthenticated`: Boolean indicating if the user is authenticated
-- `c.var.oidc.claims`: All claims from the ID token
-- `c.var.oidc.tokens`: The entire token exchange response:
-  - `c.var.oidc.tokens.id_token`: Raw ID token
-  - `c.var.oidc.tokens.access_token`: Access token (if available)
-  - `c.var.oidc.tokens.refresh_token`: Refresh token (if available)
-- `c.var.oidc.isExpired`: Boolean indicating if the access token is expired
-- `c.var.oidc.fetchUserInfo()`: Fetches user info from the UserInfo endpoint.
-- `c.var.oidc.refresh()`: Refreshes the access token using the refresh token (if available).
-- `c.var.oidcClient`: The openid-client authorization server configuration object. This is helpful if you need to invoke a method of the openid-client directly.
-
 ## Feedback
 
 ### Contributing
@@ -322,7 +264,7 @@ We appreciate feedback and contribution to this repo! Before you get started, pl
 
 ### Raise an issue
 
-To provide feedback or report a bug, please [raise an issue on our issue tracker](https://github.com/auth0-lab/hono-openid-connect/issues).
+To provide feedback or report a bug, please [raise an issue on our issue tracker](https://github.com/auth0-lab/auth0-hono/issues).
 
 ### Vulnerability Reporting
 

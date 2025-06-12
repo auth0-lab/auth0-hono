@@ -1,7 +1,7 @@
 {
   "name": "@auth0/auth0-hono",
   "version": "1.0.0",
-  "description": "OpenID Connect middleware for Hono",
+  "description": "Auth0 Authentication middleware for Hono",
   "private": true,
   "type": "module",
   "main": "dist/index.js",
@@ -15,7 +15,7 @@
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
-    "prepare": "npm run build",
+    "prepare": "npm run build && husky",
     "example:basic": "tsx watch --env-file=examples/.env examples/basic/index.ts",
     "example:auth-required": "tsx watch --env-file=examples/.env examples/auth-required/index.tsx",
     "lint": "eslint . --ext .ts",
@@ -24,6 +24,7 @@
   "keywords": [
     "hono",
     "openid-connect",
+    "auth0",
     "auth",
     "oidc",
     "oauth2"
@@ -34,6 +35,8 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
+    "@commitlint/cli": "^19.3.0",
+    "@commitlint/config-conventional": "^19.2.2",
     "@eslint/compat": "^1.2.8",
     "@eslint/js": "^9.24.0",
     "@hono/node-server": "^1.14.1",
@@ -47,8 +50,10 @@
     "eslint-config-prettier": "^10.1.2",
     "globals": "^16.0.0",
     "hono": "^4.7.6",
+    "husky": "^9.1.4",
     "prettier": "3.5.3",
     "react": "^19.1.0",
+    "semantic-release": "^24.2.5",
     "tsc-alias": "^1.8.16",
     "tsx": "^4.19.3",
     "typescript": "^5.8.3",

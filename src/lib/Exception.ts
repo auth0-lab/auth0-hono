@@ -1,7 +1,7 @@
 import { HTTPException } from "hono/http-exception";
 import { ContentfulStatusCode } from "hono/utils/http-status";
 
-export class OIDCException extends HTTPException {
+export class Auth0Exception extends HTTPException {
   constructor(
     error: string,
     errorDescription: string,

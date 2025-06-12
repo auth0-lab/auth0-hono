@@ -16,4 +16,4 @@ export {
 
 export type { TokenEndpointResponse as TokenSet } from "openid-client";
 
-export { OIDCException } from "@/lib/Exception.js";
+export { Auth0Exception } from "@/lib/Exception.js";

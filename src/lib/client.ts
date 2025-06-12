@@ -1,71 +1,42 @@
 import { Configuration } from "@/config/Configuration.js";
-import * as oidc from "openid-client";
-import QuickLRU from "quick-lru";
-
-// Cache for OIDC clients
-const clientCache = new QuickLRU<string, oidc.Configuration>({ maxSize: 10 });
-
-function getClientAuth(config: Configuration): oidc.ClientAuth {
-  switch (config.clientAuthMethod) {
-    case "client_secret_basic":
-      return oidc.ClientSecretBasic(config.clientSecret);
-    case "client_secret_post":
-      return oidc.ClientSecretPost(config.clientSecret);
-    case "client_secret_jwt":
-      return oidc.ClientSecretJwt(config.clientSecret);
-    case "private_key_jwt":
-      return oidc.PrivateKeyJwt(config.clientAssertionSigningKey);
-    case "none":
-      return oidc.None;
-  }
-}
+import { CookieTransactionStore } from "@/session/CookieTransactionStore.js";
+import { StatefulStateStore } from "@/session/StatefulStateStore.js";
+import { StatelessStateStore } from "@/session/StatelessStateStore.js";
+import { createRouteUrl } from "@/utils/util.js";
+import { ServerClient } from "@auth0/auth0-server-js";
+import { Context } from "vm";
 
 /**
  * Initialize the OpenID Connect client
  */
-export async function initializeOidcClient(
-  config: Configuration,
-): Promise<oidc.Configuration> {
-  // Generate a cache key for this configuration
-  const cacheKey = `${config.issuerBaseURL}:${config.clientID}`;
-
-  // Return cached client if it exists
-  if (clientCache.has(cacheKey)) {
-    return clientCache.get(cacheKey)!;
-  }
-
-  try {
-    // Discover the OpenID Connect provider
-    const oidcClient = await oidc.discovery(
-      new URL(config.issuerBaseURL),
-      config.clientID,
-      {
-        client_secret: config.clientSecret,
-      },
-      getClientAuth(config),
-      {
-        [oidc.customFetch]: config.fetch,
-        timeout: config.httpTimeout,
-      },
-    );
-
-    if (
-      config.pushedAuthorizationRequests &&
-      !oidcClient.serverMetadata().pushed_authorization_request_endpoint
-    ) {
-      throw new Error(
-        "pushed_authorization_request_endpoint must be configured on the issuer to use pushedAuthorizationRequests",
-      );
-    }
-
-    oidcClient[oidc.customFetch] = config.fetch;
-    oidcClient.timeout = config.httpTimeout;
-
-    // Cache the client for future use
-    clientCache.set(cacheKey, oidcClient);
-
-    return oidcClient;
-  } catch (error) {
-    throw new Error(`Could not initialize OIDC client: ${error}`);
-  }
+export function initializeOidcClient(config: Configuration) {
+  return new ServerClient<Context>({
+    domain: config.domain,
+    clientId: config.clientID,
+    clientSecret: config.clientSecret,
+    clientAssertionSigningKey: config.clientAssertionSigningKey,
+    clientAssertionSigningAlg: config.clientAssertionSigningAlg,
+    authorizationParams: {
+      ...config.authorizationParams,
+      redirect_uri: createRouteUrl(
+        config.routes.callback,
+        config.baseURL,
+      ).toString(),
+    },
+    transactionStore: new CookieTransactionStore({
+      secret: config.session.secret,
+    }),
+    stateStore: config.session.store
+      ? new StatefulStateStore({
+          ...config.session,
+          secret: config.session.secret,
+          store: config.session.store,
+        })
+      : new StatelessStateStore({
+          ...config.session,
+          secret: config.session.secret,
+        }),
+    stateIdentifier: config.session.cookie?.name ?? "appSession",
+    customFetch: config.fetch,
+  });
 }

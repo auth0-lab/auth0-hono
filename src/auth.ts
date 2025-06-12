@@ -1,21 +1,18 @@
-import {
-  assignFromEnv,
-  ConditionalInitConfig,
-  parseConfiguration,
-} from "@/config/index.js";
+import { assignFromEnv, parseConfiguration } from "@/config/index.js";
 import { initializeOidcClient } from "@/lib/client.js";
-import { OIDCContext } from "@/lib/context.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
 import {
+  backchannelLogout as backchannelLogoutHandler,
   callback as callbackHandler,
   login as loginHandler,
   logout as logoutHandler,
+  requiresAuth,
 } from "@/middleware/index.js";
-import { sessionMiddleware } from "@jfromaniello/hono-sessions";
-import { MiddlewareHandler, Next } from "hono";
-import { every } from "hono/combine";
+import { ServerClient } from "@auth0/auth0-server-js";
+import { Context, MiddlewareHandler, Next } from "hono";
 import { createMiddleware } from "hono/factory";
-import { HTTPException } from "hono/http-exception";
+import { Configuration } from "./config/Configuration.js";
+import { PartialConfig } from "./config/envConfig.js";
 
 /**
  * Main auth middleware function.
@@ -25,46 +22,42 @@ import { HTTPException } from "hono/http-exception";
  * It also manages the routing for login, callback, and logout endpoints.
  *
  */
-export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
-  const withEnvVars = assignFromEnv(initConfig);
-  const config = parseConfiguration(withEnvVars);
-
-  // Initialize session middleware if needed
-  const sessionMiddlewareHandler =
-    config.session !== false ? sessionMiddleware(config.session) : null;
-
+export function auth(initConfig: PartialConfig = {}): MiddlewareHandler {
+  let client: ServerClient<Context>;
+  let config: Configuration;
   // Main OIDC middleware function
   const oidcMiddleware: MiddlewareHandler = createMiddleware<OIDCEnv>(
     async (c, next: Next): Promise<Response | void> => {
       try {
-        c.set("oidcConfiguration", config);
-
-        // Initialize the OIDC client with defaults
-        const clientConfig = await initializeOidcClient(config);
-        c.set("oidcClient", clientConfig);
-
-        // Check if there's a valid session
-        const session = c.get("session");
-        if (!session) {
-          throw new HTTPException(500, {
-            message: "Session middleware not configured properly",
+        if (!client) {
+          // Initialize the client
+          const withEnvVars = assignFromEnv(initConfig, {
+            ...c.env,
+            ...(process.env ?? {}),
           });
+          config = parseConfiguration(withEnvVars);
+          client = initializeOidcClient(config);
         }
-
-        const oidcContext = new OIDCContext(c);
-        c.set("oidc", oidcContext);
+        c.set("auth0Client", client);
+        c.set("auth0Configuration", config);
 
         // Use destructuring with defaults to ensure routes is always defined
-        const { routes, authRequired } = config;
-        const { login, callback, logout } = routes;
+        const { routes, authRequired, mountRoutes } = config;
+        const { login, callback, logout, backchannelLogout } = routes;
 
         // Handle login route
-        if (!config.customRoutes.includes("login") && c.req.path === login) {
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("login") &&
+          c.req.path === login &&
+          c.req.method === "GET"
+        ) {
           return loginHandler()(c, next);
         }
 
         // Handle callback route
         if (
+          mountRoutes &&
           !config.customRoutes.includes("callback") &&
           c.req.path === callback
         ) {
@@ -72,16 +65,31 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
         }
 
         // Handle logout route
-        if (!config.customRoutes.includes("logout") && c.req.path === logout) {
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("logout") &&
+          c.req.path === logout &&
+          c.req.method === "GET"
+        ) {
           return logoutHandler()(c, next);
         }
 
+        // Handle backchannel logout route
+        if (
+          mountRoutes &&
+          !config.customRoutes.includes("backchannelLogout") &&
+          c.req.path === backchannelLogout &&
+          c.req.method === "POST"
+        ) {
+          return backchannelLogoutHandler()(c, next);
+        }
+
         // Handle unauthenticated requests
-        if (authRequired && !c.var.oidc?.isAuthenticated) {
-          return loginHandler()(c, next);
+        if (authRequired) {
+          return requiresAuth()(c, next);
         }
       } catch (error) {
-        console.error("OIDC Middleware Error:", error);
+        console.error("AUTH0 Middleware Error:", error);
         return c.text("Internal Server Error", 500);
       }
       // // Continue to the next middleware or route handler
@@ -89,9 +97,5 @@ export function auth(initConfig: ConditionalInitConfig): MiddlewareHandler {
     },
   );
 
-  // Return array of middlewares or just the OIDC middleware
-  if (sessionMiddlewareHandler) {
-    return every(sessionMiddlewareHandler, oidcMiddleware);
-  }
   return oidcMiddleware;
 }

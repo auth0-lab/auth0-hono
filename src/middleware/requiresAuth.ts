@@ -1,4 +1,5 @@
-import { getConfiguration } from "@/config/index.js";
+import { getClient } from "@/config/index.js";
+import { OIDCEnv } from "@/lib/honoEnv.js";
 import { Context, Next } from "hono";
 import { accepts } from "hono/accepts";
 import { HTTPException } from "hono/http-exception";
@@ -17,10 +18,12 @@ type OnRequiredAuth = "error" | "login";
  * Defaults to `configuration.errorOnRequiredAuth` if not provided.
  */
 export function requiresAuth(behavior?: OnRequiredAuth) {
-  return async (c: Context, next: Next) => {
+  return async (c: Context<OIDCEnv>, next: Next) => {
+    const { client, configuration } = getClient(c);
+    const session = await client.getSession(c);
+
     // Check if user is authenticated
-    if (!c.var.oidc?.isAuthenticated) {
-      const configuration = getConfiguration(c);
+    if (!session) {
       const acceptsHTML =
         accepts(c, {
           header: "Accept",

@@ -1,32 +1,22 @@
 import { Configuration } from "@/config/Configuration.js";
-import { OIDCSession } from "@/types/session.js";
-import * as oidc from "openid-client";
-import { OIDCContext } from "./context.js";
+import { ServerClient } from "@auth0/auth0-server-js";
+import { Context } from "hono";
 
 // Extend the Hono context to include OIDC context
-export interface OIDCVariables<TSession = object> {
-  /**
-   * The information about the OIDC session.
-   */
-  oidc?: OIDCContext;
-
+export interface OIDCVariables {
   /**
    * The middleware configuration parsed and with its default values.
    */
-  oidcConfiguration?: Configuration;
+  auth0Configuration?: Configuration;
 
   /**
-   * The OIDC client configuration for the openid-client
+   * The Auth0 client instance.
    */
-  oidcClient?: oidc.Configuration;
-
-  /**
-   * The session for the OIDC middleware.
-   */
-  session?: OIDCSession<TSession>;
+  auth0Client?: ServerClient<Context>;
 }
 
-export interface OIDCEnv<TBindings = object, TSession = object> {
-  Env: TBindings;
-  Variables: OIDCVariables<TSession>;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export interface OIDCEnv<TBindings = any> {
+  Bindings: TBindings;
+  Variables: OIDCVariables;
 }

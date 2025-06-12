@@ -1,18 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Context } from "hono";
-import * as oidc from "openid-client";
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from "vitest";
-import { getConfiguration } from "../../src/config";
+import { getClient } from "../../src/config";
 import { resumeSilentLogin } from "../../src/middleware";
 import { logout } from "../../src/middleware/logout";
+import { toSafeRedirect } from "../../src/utils/util";
 
 // Mock dependencies
-vi.mock("openid-client", () => ({
-  buildEndSessionUrl: vi.fn(),
+vi.mock("../../src/config", () => ({
+  getClient: vi.fn(),
 }));
 
-vi.mock("../../src/config", () => ({
-  getConfiguration: vi.fn(),
+vi.mock("../../src/utils/util", () => ({
+  toSafeRedirect: vi.fn(),
 }));
 
 vi.mock("../../src/middleware/silentLogin", () => ({
@@ -21,31 +21,26 @@ vi.mock("../../src/middleware/silentLogin", () => ({
 
 describe("logout middleware", () => {
   let mockContext: Context;
-  let mockSession: any;
   let mockOidcSession: any;
   let mockConfiguration: any;
+  let mockClient: any;
   const nextFn = vi.fn();
   const resumeSilentLoginMiddleware = vi.fn();
   beforeEach(() => {
     vi.resetAllMocks();
 
-    // Mock session data
-    mockSession = {
-      get: vi.fn(),
-      set: vi.fn(),
-      forget: vi.fn(),
-    };
-
     (resumeSilentLogin as Mock).mockReturnValue(resumeSilentLoginMiddleware);
     // Mock OIDC session data
     mockOidcSession = {
-      tokens: {
-        id_token: "mock-id-token",
-        access_token: "mock-access-token",
-      },
+      id_token: "mock-id-token",
+      access_token: "mock-access-token",
     };
 
-    mockSession.get.mockReturnValue(mockOidcSession);
+    // Create a mock client
+    mockClient = {
+      logout: vi.fn().mockResolvedValue("https://idp.example.com/logout"),
+      getSession: vi.fn().mockResolvedValue(mockOidcSession),
+    };
 
     // Create a mock Hono context
     mockContext = {
@@ -54,10 +49,6 @@ describe("logout middleware", () => {
           /* mock OIDC client */
         },
       },
-      get: vi.fn().mockImplementation((key) => {
-        if (key === "session") return mockSession;
-        return undefined;
-      }),
       redirect: vi.fn().mockImplementation((url) => {
         return { status: 302, headers: { location: url } };
       }),
@@ -69,13 +60,17 @@ describe("logout middleware", () => {
       idpLogout: false,
     };
 
-    // Setup the getConfiguration mock
-    (getConfiguration as Mock).mockReturnValue(mockConfiguration);
+    // Setup the getClient mock
+    (getClient as Mock).mockReturnValue({
+      client: mockClient,
+      configuration: mockConfiguration,
+    });
 
-    // Mock the buildEndSessionUrl function
-    (oidc.buildEndSessionUrl as Mock).mockReturnValue(
-      "https://idp.example.com/logout",
-    );
+    // Setup toSafeRedirect mock
+    (toSafeRedirect as Mock).mockImplementation((url) => {
+      // Simple mock that returns the input URL if it's valid, or baseURL if not
+      return url;
+    });
   });
 
   afterEach(() => {
@@ -89,23 +84,30 @@ describe("logout middleware", () => {
       result = (await logout()(mockContext, nextFn)) as Response;
     });
 
-    it("should retrieve the OIDC session from the session store", () => {
-      expect(mockSession.get).toHaveBeenCalledWith("oidc");
+    it("should get the client and configuration", () => {
+      expect(getClient).toHaveBeenCalledWith(mockContext);
     });
 
-    it("should clear the OIDC session", () => {
-      expect(mockSession.forget).toHaveBeenCalledWith("oidc");
+    it("should call client.logout with the correct parameters", () => {
+      expect(mockClient.logout).toHaveBeenCalledWith(
+        { returnTo: "https://app.example.com" },
+        mockContext,
+      );
     });
-
-    it("should redirect to the root path by default", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/");
+    it("should redirect to the baseURL by default", () => {
+      expect(mockContext.redirect).toHaveBeenCalledWith(
+        "https://app.example.com",
+      );
     });
 
     it("should return the redirect", () => {
-      expect(result).toEqual({ status: 302, headers: { location: "/" } });
+      expect(result).toEqual({
+        status: 302,
+        headers: { location: "https://app.example.com" },
+      });
     });
 
-    it("should pause silent login", () => {
+    it("should call resumeSilentLogin middleware", () => {
       expect(resumeSilentLoginMiddleware).toHaveBeenCalledWith(
         mockContext,
         nextFn,
@@ -115,25 +117,29 @@ describe("logout middleware", () => {
 
   describe("when redirectAfterLogout parameter is provided", () => {
     let result: Response;
+    const customPath = "/custom-logout-page";
 
     beforeEach(async () => {
       result = (await logout({
-        redirectAfterLogout: "/custom-logout-page",
+        redirectAfterLogout: customPath,
       })(mockContext, nextFn)) as Response;
     });
 
-    it("should redirect to the specified redirectAfterLogout URL", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/custom-logout-page");
+    it("should call toSafeRedirect with the custom path", () => {
+      expect(toSafeRedirect).toHaveBeenCalledWith(
+        customPath,
+        mockConfiguration.baseURL,
+      );
     });
 
-    it("should clear the OIDC session", () => {
-      expect(mockSession.forget).toHaveBeenCalledWith("oidc");
+    it("should redirect to the specified redirectAfterLogout URL", () => {
+      expect(mockContext.redirect).toHaveBeenCalledWith(customPath);
     });
 
     it("should return the redirect response", () => {
       expect(result).toEqual({
         status: 302,
-        headers: { location: "/custom-logout-page" },
+        headers: { location: customPath },
       });
     });
   });
@@ -142,41 +148,21 @@ describe("logout middleware", () => {
     let result: Response;
 
     beforeEach(async () => {
-      (mockContext.get as Mock).mockImplementation(() => undefined);
+      mockClient.getSession.mockImplementation(() => undefined);
       result = (await logout()(mockContext, nextFn)) as Response;
     });
 
-    it("should not attempt to clear the session", () => {
-      expect(mockSession.set).not.toHaveBeenCalled();
-    });
-
-    it("should still redirect to the default path", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/");
-    });
-
-    it("should return the redirect response", () => {
-      expect(result).toEqual({ status: 302, headers: { location: "/" } });
-    });
-  });
-
-  describe("when OIDC session is not available", () => {
-    let result: Response;
-
-    beforeEach(async () => {
-      mockSession.get.mockReturnValue(undefined);
-      result = (await logout()(mockContext, nextFn)) as Response;
-    });
-
-    it("should not attempt to clear the session", () => {
-      expect(mockSession.set).not.toHaveBeenCalled();
-    });
-
-    it("should still redirect to the default path", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/");
+    it("should still redirect to the baseURL", () => {
+      expect(mockContext.redirect).toHaveBeenCalledWith(
+        mockConfiguration.baseURL,
+      );
     });
 
     it("should return the redirect response", () => {
-      expect(result).toEqual({ status: 302, headers: { location: "/" } });
+      expect(result).toEqual({
+        status: 302,
+        headers: { location: mockConfiguration.baseURL },
+      });
     });
   });
 
@@ -189,84 +175,36 @@ describe("logout middleware", () => {
       result = (await logout()(mockContext, nextFn)) as Response;
     });
 
-    it("should build the end session URL", () => {
-      expect(oidc.buildEndSessionUrl).toHaveBeenCalledWith(
-        mockContext.var.oidcClient,
-        {
-          id_token_hint: mockOidcSession.tokens.id_token,
-          post_logout_redirect_uri: "https://app.example.com/",
-        },
-      );
-    });
-
     it("should redirect to the IdP end session URL", () => {
       expect(mockContext.redirect).toHaveBeenCalledWith(
         "https://idp.example.com/logout",
       );
     });
 
-    it("should clear the OIDC session", () => {
-      expect(mockSession.forget).toHaveBeenCalledWith("oidc");
-    });
-
     it("should return the redirect response", () => {
       expect(result).toEqual({
         status: 302,
         headers: { location: "https://idp.example.com/logout" },
-      });
-    });
-  });
-
-  describe("when IdP logout is enabled but no ID token is available", () => {
-    let result: Response;
-
-    beforeEach(async () => {
-      // Configure with IdP logout enabled but no ID token
-      mockConfiguration.idpLogout = true;
-      mockOidcSession.tokens.id_token = undefined;
-      result = (await logout({
-        redirectAfterLogout: "/logged-out",
-      })(mockContext, nextFn)) as Response;
-    });
-
-    it("should not call buildEndSessionUrl", () => {
-      expect(oidc.buildEndSessionUrl).not.toHaveBeenCalled();
-    });
-
-    it("should redirect to the specified URL", () => {
-      expect(mockContext.redirect).toHaveBeenCalledWith("/logged-out");
-    });
-
-    it("should clear the OIDC session", () => {
-      expect(mockSession.forget).toHaveBeenCalledWith("oidc");
-    });
-
-    it("should return the redirect response", () => {
-      expect(result).toEqual({
-        status: 302,
-        headers: { location: "/logged-out" },
       });
     });
   });
 
   describe("when IdP logout is enabled with a custom redirect", () => {
     let result: Response;
+    const customPath = "/custom-logged-out";
 
     beforeEach(async () => {
       // Configure with IdP logout enabled and custom redirect
       mockConfiguration.idpLogout = true;
       result = (await logout({
-        redirectAfterLogout: "/custom-logged-out",
+        redirectAfterLogout: customPath,
       })(mockContext, nextFn)) as Response;
     });
 
-    it("should build the end session URL with the custom redirect URI", () => {
-      expect(oidc.buildEndSessionUrl).toHaveBeenCalledWith(
-        mockContext.var.oidcClient,
-        {
-          id_token_hint: mockOidcSession.tokens.id_token,
-          post_logout_redirect_uri: "https://app.example.com/custom-logged-out",
-        },
+    it("should call client.logout with the custom redirect URL", () => {
+      expect(mockClient.logout).toHaveBeenCalledWith(
+        { returnTo: customPath },
+        mockContext,
       );
     });
 
@@ -281,10 +219,6 @@ describe("logout middleware", () => {
         status: 302,
         headers: { location: "https://idp.example.com/logout" },
       });
-    });
-
-    it("should clear the OIDC session", () => {
-      expect(mockSession.forget).toHaveBeenCalledWith("oidc");
     });
   });
 });

@@ -1,6 +1,6 @@
 {
-  "name": "@auth0/hono-openid-connect",
-  "version": "2.2.1",
+  "name": "@auth0/auth0-hono",
+  "version": "1.0.0",
   "description": "OpenID Connect middleware for Hono",
   "private": true,
   "type": "module",
@@ -56,11 +56,7 @@
     "vitest": "^3.1.1"
   },
   "dependencies": {
-    "@jfromaniello/hono-sessions": "^2.0.1",
-    "jose": "^6.0.11",
-    "oauth4webapi": "^3.5.0",
-    "openid-client": "^6",
-    "quick-lru": "^7.0.1",
+    "@auth0/auth0-server-js": "^1.0.1",
     "zod": "^3.24.4"
   },
   "peerDependencies": {

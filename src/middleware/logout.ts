@@ -1,7 +1,7 @@
-import { getConfiguration } from "@/config/index.js";
+import { getClient } from "@/config/index.js";
 import { OIDCEnv } from "@/lib/honoEnv.js";
+import { toSafeRedirect } from "@/utils/util.js";
 import { createMiddleware } from "hono/factory";
-import * as oidc from "openid-client";
 import { resumeSilentLogin } from "./silentLogin.js";
 
 type LogoutParams = {
@@ -13,34 +13,26 @@ type LogoutParams = {
  */
 export const logout = (params: LogoutParams = {}) => {
   return createMiddleware<OIDCEnv>(async function (c, next): Promise<Response> {
-    const config = getConfiguration(c);
-    const oidcClient = c.var.oidcClient!;
-    const session = c.get("session");
-    const oidcSession = session?.get("oidc");
+    const { client, configuration } = getClient(c);
+    const session = await client.getSession(c);
 
-    // Clear the session
-    if (session && oidcSession) {
-      session.forget("oidc");
+    const returnTo =
+      (params.redirectAfterLogout
+        ? toSafeRedirect(params.redirectAfterLogout, configuration.baseURL)
+        : undefined) ?? configuration.baseURL;
+
+    if (!session) {
+      return c.redirect(returnTo);
     }
+
+    const logoutUrl = await client.logout({ returnTo }, c);
 
     await resumeSilentLogin()(c, next);
 
-    const postLogoutRedirectUri = params.redirectAfterLogout ?? "/";
-
-    // Handle IdP logout if enabled
-    if (config.idpLogout && oidcSession?.tokens.id_token) {
-      const postLogoutRedirectURI = new URL(
-        postLogoutRedirectUri,
-        config.baseURL,
-      ).toString();
-      const endSessionUrl = oidc.buildEndSessionUrl(oidcClient, {
-        id_token_hint: oidcSession.tokens.id_token,
-        post_logout_redirect_uri: postLogoutRedirectURI,
-      });
-      return c.redirect(endSessionUrl);
+    if (!configuration.idpLogout) {
+      return c.redirect(returnTo);
     }
 
-    // If not doing IdP logout, just redirect to the specified URL
-    return c.redirect(postLogoutRedirectUri);
+    return c.redirect(logoutUrl);
   });
 };

@@ -2,7 +2,6 @@
   "name": "@auth0/auth0-hono",
   "version": "1.0.0",
   "description": "Auth0 Authentication middleware for Hono",
-  "private": true,
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

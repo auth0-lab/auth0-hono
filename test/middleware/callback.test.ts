@@ -186,7 +186,7 @@ describe("callback middleware", () => {
   describe("when callback verification returns an error with specific message", () => {
     let err: Error;
     beforeEach(async () => {
-      // Create an error with cause property like OIDCException would have
+      // Create an error with cause property like Auth0Exception would have
       const error = new Error("The authorization code is invalid or expired");
       error.cause = {
         error: "invalid_grant",

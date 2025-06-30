@@ -150,14 +150,64 @@ app.onError((err, c) => {
 });
 ```
 
-### Configuration thru environment variables
+### Configuration through Environment Variables
 
-You can also configure the middleware using environment variables. The following environment variables are supported:
+You can configure the middleware using environment variables instead of passing configuration options directly. This is particularly useful for deployment environments where you want to keep sensitive values in environment variables.
 
-- AUTH0_DOMAIN: The issuer URL of the OpenID Connect provider (e.g., `auth.example.com`)
-- AUTH0_CLIENT_ID: The client ID.
-- AUTH0_CLIENT_SECRET?: The client secret provided (required for most flows)
-- BASE_URL: The base URL of your application (e.g., `https://myapp.com`)
+The following environment variables are supported:
+
+| Environment Variable           | Required | Description                                                        |
+| ------------------------------ | -------- | ------------------------------------------------------------------ |
+| `AUTH0_DOMAIN`                 | Yes      | The Auth0 domain (e.g., `your-tenant.auth0.com`)                   |
+| `AUTH0_CLIENT_ID`              | Yes      | The client ID provided by Auth0                                    |
+| `BASE_URL`                     | Yes      | The base URL of your application (e.g., `https://myapp.com`)       |
+| `AUTH0_CLIENT_SECRET`          | No       | The client secret provided by Auth0 (required for most flows)      |
+| `AUTH0_AUDIENCE`               | No       | The API audience identifier for your Auth0 API                     |
+| `AUTH0_SESSION_ENCRYPTION_KEY` | No       | The secret key used for session encryption (minimum 32 characters) |
+
+When environment variables are set, they will be used as defaults for the corresponding configuration options. You can still override them by passing explicit values in the configuration object.
+
+**Example using only environment variables:**
+
+```bash
+# .env file
+AUTH0_DOMAIN=your-tenant.auth0.com
+AUTH0_CLIENT_ID=your_client_id
+AUTH0_CLIENT_SECRET=your_client_secret
+BASE_URL=https://localhost:3000
+AUTH0_SESSION_ENCRYPTION_KEY=your_32_character_minimum_secret_key
+AUTH0_AUDIENCE=https://api.yourapp.com
+```
+
+```ts
+import { Hono } from "hono";
+import { auth } from "@auth0/auth0-hono";
+
+const app = new Hono();
+
+// No configuration object needed - will use environment variables
+app.use(auth());
+
+app.get("/", (c) => {
+  return c.text(`Hello ${c.var.auth0Client?.getSession(c)?.user?.name}!`);
+});
+```
+
+**Example with mixed configuration (environment + explicit):**
+
+```ts
+app.use(
+  auth({
+    // These will override environment variables if set
+    authRequired: false,
+    routes: {
+      login: "/custom-login",
+      callback: "/auth-callback",
+    },
+    // Other options like domain, clientID, etc. will use environment variables
+  }),
+);
+```
 
 ## Advanced Usage
 

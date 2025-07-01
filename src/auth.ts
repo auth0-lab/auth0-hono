@@ -10,9 +10,11 @@ import {
 } from "@/middleware/index.js";
 import { ServerClient } from "@auth0/auth0-server-js";
 import { Context, MiddlewareHandler, Next } from "hono";
+import { every } from "hono/combine";
 import { createMiddleware } from "hono/factory";
 import { Configuration } from "./config/Configuration.js";
 import { PartialConfig } from "./config/envConfig.js";
+import { HonoCookieHandler } from "./session/HonoCookieHandler.js";
 
 /**
  * Main auth middleware function.
@@ -97,5 +99,9 @@ export function auth(initConfig: PartialConfig = {}): MiddlewareHandler {
     },
   );
 
-  return oidcMiddleware;
+  const setHonoContext = createMiddleware(async (c, next) => {
+    return HonoCookieHandler.setContext(c, next);
+  });
+
+  return every(setHonoContext, oidcMiddleware);
 }

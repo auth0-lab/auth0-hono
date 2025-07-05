@@ -48,7 +48,7 @@ exports[`Configuration Parser > should parse a valid configuration 1`] = `
   },
   "session": {
     "absoluteDuration": 259200,
-    "cookieOptions": {
+    "cookie": {
       "name": "appSession",
       "sameSite": "lax",
       "secure": true,

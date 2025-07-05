@@ -37,7 +37,7 @@ export const ConfigurationSchema = z
         .number()
         .optional()
         .default(60 * 60 * 24),
-      cookieOptions: z
+      cookie: z
         .object({
           name: z.string().optional().default("appSession"),
           sameSite: z.enum(["lax", "strict", "none"]).optional().default("lax"),
@@ -156,30 +156,30 @@ export const ConfigurationSchema = z
   .superRefine((data, ctx) => {
     // Handle secure cookie validation based on baseURL
     if (data.session && typeof data.session !== "boolean") {
-      const cookieOptions = data.session.cookieOptions;
+      const cookie = data.session.cookie;
       if (isHttps.test(data.baseURL)) {
-        if (cookieOptions.secure === false) {
+        if (cookie.secure === false) {
           ctx.addIssue({
             code: z.ZodIssueCode.custom,
             message:
               "Setting your cookie to insecure when over https is not recommended, I hope you know what you're doing.",
-            path: ["session", "cookieOptions", "secure"],
+            path: ["session", "cookie", "secure"],
           });
-        } else if (cookieOptions.secure === undefined) {
+        } else if (cookie.secure === undefined) {
           // Default to true for HTTPS
-          data.session.cookieOptions.secure = true;
+          data.session.cookie.secure = true;
         }
-      } else if (cookieOptions.secure === true) {
+      } else if (cookie.secure === true) {
         // Error for HTTP with secure cookie
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
             "Cookies set with the `Secure` property won't be attached to http requests",
-          path: ["session", "cookieOptions", "secure"],
+          path: ["session", "cookie", "secure"],
         });
-      } else if (cookieOptions.secure === undefined) {
+      } else if (cookie.secure === undefined) {
         // Default to false for HTTP
-        data.session.cookieOptions.secure = false;
+        data.session.cookie.secure = false;
       }
     }
 

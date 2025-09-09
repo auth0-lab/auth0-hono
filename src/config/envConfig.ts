@@ -47,15 +47,17 @@ export const assignFromEnv = (
     BASE_URL,
     AUTH0_AUDIENCE,
   } = env;
+
+  const authorizationParams = {...configWithoutEnv.authorizationParams};
+  authorizationParams.audience = authorizationParams.audience ?? AUTH0_AUDIENCE;
+
   return {
     ...configWithoutEnv,
     domain: configWithoutEnv.domain ?? AUTH0_DOMAIN,
     clientID: configWithoutEnv.clientID ?? AUTH0_CLIENT_ID,
     clientSecret: configWithoutEnv.clientSecret ?? AUTH0_CLIENT_SECRET,
     baseURL: configWithoutEnv.baseURL ?? BASE_URL,
-    authorizationParams: AUTH0_AUDIENCE
-      ? { audience: AUTH0_AUDIENCE }
-      : undefined,
+    authorizationParams: authorizationParams,
     session: {
       ...(configWithoutEnv.session || {}),
       secret:

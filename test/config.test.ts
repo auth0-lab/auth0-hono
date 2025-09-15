@@ -93,6 +93,27 @@ describe("Configuration Parser", () => {
 
     expect(() => parseConfiguration(config)).toThrow();
   });
+
+  it("should work with a custom cookie name", () => {
+    const config: InitConfiguration = {
+      domain: "auth.example.com",
+      baseURL: "https://app.example.com",
+      clientID: "test-client-id",
+      session: {
+        secret: "test encryption key fdsgfds gfds ",
+        cookie: {
+          name: "my_custom_session",
+        },
+      },
+    };
+
+    const parsedConfig = parseConfiguration(config);
+
+    expect(parsedConfig).toHaveProperty(
+      "session.cookie.name",
+      "my_custom_session",
+    );
+  });
 });
 
 describe("Environment Configuration", () => {

@@ -100,12 +100,13 @@ app.use(
     // ...required options
     session: {
       secret: "your-secure-encryption-key-minimum-32-chars",
-      sessionCookieName: "my_session",
-      cookieOptions: {
-        sameSite: "Lax",
-        path: "/",
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
+      rolling: true, // optional, default: true
+      absoluteDuration: 259200, // optional, default: 3 days (in seconds)
+      inactivityDuration: 86400, // optional, default: 1 day (in seconds)
+      cookie: {
+        name: "my_session", // optional, default: "appSession"
+        sameSite: "lax", // optional, default: "lax"
+        secure: process.env.NODE_ENV === "production", // optional, auto-determined if not set
       },
     },
   }),

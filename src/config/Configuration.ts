@@ -42,15 +42,17 @@ export interface Configuration {
   idpLogout: boolean;
 
   /**
-   * hono-sessions options.
+   * Session configuration options.
    *
    * @default {
-   *  store: new CookieStore(),
-   *  sessionCookieName: 'appSession',
-   *  cookieOptions: {
-   *    sameSite: 'Lax',
-   *    path: '/',
-   *    httpOnly: true,
+   *  secret: string, // required - at least 32 characters
+   *  rolling: true,
+   *  absoluteDuration: 259200, // 3 days in seconds
+   *  inactivityDuration: 86400, // 1 day in seconds
+   *  cookie: {
+   *    name: 'appSession',
+   *    sameSite: 'lax',
+   *    secure: undefined // auto-determined based on baseURL protocol
    *  }
    * }
    */
